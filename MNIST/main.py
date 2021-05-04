@@ -16,6 +16,8 @@ from pytorch_lightning.callbacks import Callback
 
 from net_encoder_decoder_mnist import Encoder, Decoder
 
+N_CPU = 8       # Number of cores of Mac mini M1
+VALIDATION_RATIO = 0.2
 
 MODELING_PATH = os.path.join(os.curdir, 'modeling')
 RESULT_PATH = os.path.join(MODELING_PATH, 'result')
@@ -24,7 +26,7 @@ CHECKPOINT_FILE = os.path.join(MODELING_PATH, 'checkpoint.ckpt')
 
 
 # functions to show an image
-def imshow(img, file='', text_=''):
+def show_img(img, file='', text_=''):
     img = img / 2 + 0.5             # unnormalize
     npimg = img.detach().numpy()    # img.numpy()
     plt.imshow(np.transpose(npimg, (1, 2, 0)))
@@ -97,21 +99,21 @@ class LitAutoEncoder(pl.LightningModule):
     def setup(self, stage=None):        # train, val, testデータ分割
         # Assign train/val datasets for use in dataloaders
         mnist_full = MNIST(self.data_dir, train=True, transform=self.transform)
-        n_train = int(len(mnist_full) * 0.8)
-        n_val = len(mnist_full) - n_train
+        n_val = int(len(mnist_full) * VALIDATION_RATIO)
+        n_train = len(mnist_full) - n_val
         self.mnist_train, self.mnist_val = torch.utils.data.random_split(mnist_full, [n_train, n_val])
         self.mnist_test = MNIST(self.data_dir, train=False, transform=self.transform)
 
     def train_dataloader(self):
-        self.trainloader = DataLoader(self.mnist_train, shuffle=True, drop_last = True, batch_size=32, num_workers=0)
+        self.trainloader = DataLoader(self.mnist_train, shuffle=True, drop_last=True, batch_size=32, num_workers=N_CPU)
         # get some random training images
         return self.trainloader
 
     def val_dataloader(self):
-        return DataLoader(self.mnist_val, shuffle=False, batch_size=32, num_workers=0)
+        return DataLoader(self.mnist_val, shuffle=False, batch_size=32, num_workers=N_CPU)
 
     def test_dataloader(self):
-        self.testloader = DataLoader(self.mnist_test, shuffle=False, batch_size=32, num_workers=0)
+        self.testloader = DataLoader(self.mnist_test, shuffle=False, batch_size=32, num_workers=N_CPU)
         return self.testloader
 
 
@@ -129,7 +131,7 @@ def main():
     dataiter = iter(autoencoder.trainloader)
     images, labels = dataiter.next()
     # show images
-    imshow(torchvision.utils.make_grid(images), 'mnist_initial', text_='original')
+    show_img(torchvision.utils.make_grid(images), 'mnist_initial', text_='original')
     # print labels
     print(' '.join('%5s' % autoencoder.classes[labels[j]] for j in range(4)))
     results = trainer.test(autoencoder)
@@ -138,8 +140,8 @@ def main():
     dataiter = iter(autoencoder.testloader)
     images, labels = dataiter.next()
     # show images
-    imshow(torchvision.utils.make_grid(images), 'mnist_results',
-           text_=' '.join('%5s' % autoencoder.classes[labels[j]] for j in range(4)))
+    show_img(torchvision.utils.make_grid(images), 'mnist_results',
+             text_=' '.join('%5s' % autoencoder.classes[labels[j]] for j in range(4)))
     # print labels
     print(' '.join('%5s' % autoencoder.classes[labels[j]] for j in range(4)))
 
@@ -155,14 +157,14 @@ def main():
     dataiter = iter(autoencoder.testloader)
     images, labels = dataiter.next()
     # show images
-    imshow(torchvision.utils.make_grid(images), 'original_images_{}_{}'.format(latent_dim, ver),
-           text_=' '.join('%5s' % autoencoder.classes[labels[j]] for j in range(8)))
+    show_img(torchvision.utils.make_grid(images), 'original_images_{}_{}'.format(latent_dim, ver),
+             text_=' '.join('%5s' % autoencoder.classes[labels[j]] for j in range(8)))
 
     encode_img = pretrained_model.encoder(images[0:32].to('cpu').reshape(32, 28 * 28))
     decode_img = pretrained_model.decoder(encode_img)
-    imshow(torchvision.utils.make_grid(decode_img.cpu().reshape(32, 1, 28, 28)),
-           'original_autoencode_preds_mnist_{}_{}'.format(latent_dim, ver),
-           text_=' '.join('%5s' % autoencoder.classes[labels[j]] for j in range(8)))
+    show_img(torchvision.utils.make_grid(decode_img.cpu().reshape(32, 1, 28, 28)),
+             'original_autoencode_preds_mnist_{}_{}'.format(latent_dim, ver),
+             text_=' '.join('%5s' % autoencoder.classes[labels[j]] for j in range(8)))
 
 
 if __name__ == '__main__':
