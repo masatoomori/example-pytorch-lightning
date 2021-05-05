@@ -134,8 +134,14 @@ dmypy.json
 # Mac
 .DS_Store
 
+# Preprocessed Data
+Titanic/input/preprocessed/
+
 # Lightning Files
 MNIST/lightning_files/
 
 # Training Log
 MNIST/lightning_logs/
+
+# Modeling Result
+MNIST/result/
