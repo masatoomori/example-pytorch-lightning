@@ -16,13 +16,15 @@ from pytorch_lightning.callbacks import Callback
 
 from net_encoder_decoder_mnist import Encoder, Decoder
 
-N_CPU = 8       # Number of cores of Mac mini M1
 VALIDATION_RATIO = 0.2
 
-MODELING_PATH = os.path.join(os.curdir, 'modeling')
-RESULT_PATH = os.path.join(MODELING_PATH, 'result')
-MODEL_FILE = os.path.join(MODELING_PATH, 'model.pt')
-CHECKPOINT_FILE = os.path.join(MODELING_PATH, 'checkpoint.ckpt')
+LIGHTNING_PATH = os.path.join(os.curdir, 'lightning_files')
+RESULT_PATH = os.path.join(os.curdir, 'result')
+MODEL_FILE = os.path.join(RESULT_PATH, 'model.pt')
+CHECKPOINT_FILE = os.path.join(RESULT_PATH, 'checkpoint.ckpt')
+
+N_CPU = os.cpu_count()
+os.makedirs(RESULT_PATH, exist_ok=True)
 
 
 # functions to show an image
@@ -45,7 +47,7 @@ class MyPrintingCallback(Callback):
 
 
 class LitAutoEncoder(pl.LightningModule):
-    def __init__(self, data_dir=MODELING_PATH):
+    def __init__(self, data_dir=LIGHTNING_PATH):
         super().__init__()
         self.data_dir = data_dir
 
@@ -153,7 +155,7 @@ def main():
     pretrained_model.freeze()
     pretrained_model.eval()
 
-    latent_dim,ver = 32, 10
+    latent_dim, ver = 32, 10
     dataiter = iter(autoencoder.testloader)
     images, labels = dataiter.next()
     # show images

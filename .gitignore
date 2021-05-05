@@ -134,8 +134,8 @@ dmypy.json
 # Mac
 .DS_Store
 
-# Model Data
-MNIST/modeling/
+# Lightning Files
+MNIST/lightning_files/
 
 # Training Log
 MNIST/lightning_logs/
