@@ -16,15 +16,15 @@ from pytorch_lightning.callbacks import Callback
 
 from net_encoder_decoder_mnist import Encoder, Decoder
 
-VALIDATION_RATIO = 0.2
-
 LIGHTNING_PATH = os.path.join(os.curdir, 'lightning_files')
 RESULT_PATH = os.path.join(os.curdir, 'result')
 MODEL_FILE = os.path.join(RESULT_PATH, 'model.pt')
 CHECKPOINT_FILE = os.path.join(RESULT_PATH, 'checkpoint.ckpt')
 
-N_CPU = os.cpu_count()
+NUM_WORKERS = min(2, os.cpu_count())
 os.makedirs(RESULT_PATH, exist_ok=True)
+
+VALIDATION_RATIO = 0.2
 
 
 # functions to show an image
@@ -107,15 +107,16 @@ class LitAutoEncoder(pl.LightningModule):
         self.mnist_test = MNIST(self.data_dir, train=False, transform=self.transform)
 
     def train_dataloader(self):
-        self.trainloader = DataLoader(self.mnist_train, shuffle=True, drop_last=True, batch_size=32, num_workers=N_CPU)
+        self.trainloader = DataLoader(self.mnist_train, shuffle=True, drop_last=True, batch_size=32,
+                                      num_workers=NUM_WORKERS)
         # get some random training images
         return self.trainloader
 
     def val_dataloader(self):
-        return DataLoader(self.mnist_val, shuffle=False, batch_size=32, num_workers=N_CPU)
+        return DataLoader(self.mnist_val, shuffle=False, batch_size=32, num_workers=NUM_WORKERS)
 
     def test_dataloader(self):
-        self.testloader = DataLoader(self.mnist_test, shuffle=False, batch_size=32, num_workers=N_CPU)
+        self.testloader = DataLoader(self.mnist_test, shuffle=False, batch_size=32, num_workers=NUM_WORKERS)
         return self.testloader
 
 
