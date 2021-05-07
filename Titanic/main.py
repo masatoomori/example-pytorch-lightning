@@ -1,5 +1,6 @@
 import os
 import time
+import json
 import pandas as pd
 import numpy as np
 
@@ -15,8 +16,10 @@ from pytorch_lightning.callbacks import Callback
 from net_encoder_decoder_titanic import Encoder, Decoder
 
 # data_preprocessing.pyで作成したファイル
-MODELING_ORIG_FILE = os.path.join(os.curdir, 'input', 'preprocessed', 'modeling.csv')
-SUBMISSION_ORIG_FILE = os.path.join(os.curdir, 'input', 'preprocessed', 'submission.csv')
+MODELING_ORIG_FILE = os.path.join(os.curdir, 'input', 'preprocessed', 'modeling.pkl')
+SUBMISSION_ORIG_FILE = os.path.join(os.curdir, 'input', 'preprocessed', 'submission.pkl')
+DATA_PROFILE_FILE = os.path.join(os.curdir, 'input', 'preprocessed', 'data_profile.json')
+DATA_PROFILE = json.load(open(DATA_PROFILE_FILE))
 
 LIGHTNING_PATH = os.path.join(os.curdir, 'lightning_files')
 DATA_PATH_PREFIX = os.path.join('input', 'processed')
@@ -45,12 +48,12 @@ class MyLitModule(pl.LightningModule):
         self.data_dir = data_dir
 
         # Hardcode some dataset specific attributes
-        self.target = 'Survived'        # 1: Survived, 0: Dead
-        self.num_classes = 2
-        self.classes = (0, 1)
-        self.dims = (1, 28, 28)
-        channels, width, height = self.dims
-        self.transform = transforms.Compose([transforms.ToTensor(), transforms.Normalize((0.1307,), (0.3081,))])
+        self.target = DATA_PROFILE['target']['name']
+        self.num_classes = DATA_PROFILE['target']['num_classes']
+        self.classes = set(DATA_PROFILE['target']['classes'])
+        self.dims = set(DATA_PROFILE['explanatory']['dims'])
+        _ = self.dims
+        # self.transform = transforms.Compose([transforms.ToTensor(), transforms.Normalize((0.1307,), (0.3081,))])
 
         self.encoder = Encoder()    # nn.Sequential(nn.Linear(28 * 28, 128), nn.ReLU(), nn.Linear(128, 32))
         self.decoder = Decoder()    # nn.Sequential(nn.Linear(32, 128), nn.ReLU(), nn.Linear(128, 28 * 28))
@@ -89,19 +92,11 @@ class MyLitModule(pl.LightningModule):
 
     def prepare_data(self):
         # download
-        df_modeling = pd.read_csv(MODELING_ORIG_FILE, encoding='utf8', dtype=object)
-        df_submission = pd.read_csv(SUBMISSION_ORIG_FILE, encoding='utf8', dtype=object)
+        df_modeling = pd.read_pickle(MODELING_ORIG_FILE)
+        df_submission = pd.read_pickle(SUBMISSION_ORIG_FILE)
 
         # 必要に応じて型の変換とかを書く。Transformというクラスを作った方がいいかもしれない
-        df_modeling[self.target] = pd.to_numeric(df_modeling[self.target]).astype(np.int32)
-        df_submission.drop([self.target], axis=1, inplace=True)
-
-        drop_cols = ['Name', 'Sex', 'Ticket', 'Cabin', 'Embarked', 'Salutation']
-        df_modeling.drop(drop_cols, axis=1, inplace=True)
-        df_submission.drop(drop_cols, axis=1, inplace=True)
-
-        df_modeling = df_modeling.astype(np.float32)
-        df_submission = df_submission.astype(np.float32)
+        # 基本的にはdata_preprocessing.pyで前処理は済ませたい
 
         data_path = os.path.join(self.data_dir, DATA_PATH_PREFIX)
         os.makedirs(data_path, exist_ok=True)
@@ -147,7 +142,7 @@ def main():
     model = MyLitModule()
     # trainer = pl.Trainer()
     trainer = pl.Trainer(max_epochs=10, gpus=n_gpu, callbacks=[MyPrintingCallback()])
-    trainer.fit(model)    # , DataLoader(train), DataLoader(val))
+    #trainer.fit(model)    # , DataLoader(train), DataLoader(val))
     print('training_finished')
 
     model.prepare_data()

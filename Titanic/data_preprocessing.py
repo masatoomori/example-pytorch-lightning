@@ -1,14 +1,20 @@
 import os
+import json
+import datetime
 
 import pandas as pd
+import numpy as np
 
 ORIGINAL_DATA_PATH = os.path.join('input', 'original')
-PREPROCESSED_DATA_PATH = os.path.join('input', 'preprocessed')
+PROCESSED_DATA_PATH = os.path.join('input', 'preprocessed')
 
 TRAIN_ORIG_FILE = 'train.csv'
 TEST_ORIG_FILE = 'test.csv'
-MODELING_DATA_FILE = 'modeling.csv'
-SUBMISSION_DATA_FILE = 'submission.csv'
+MODELING_DATA_FILE = 'modeling.{}'
+SUBMISSION_DATA_FILE = 'submission.{}'
+DATA_PROFILE = 'data_profile.json'
+
+TARGET_COL = 'Survived'
 
 
 def data_load():
@@ -118,6 +124,47 @@ def embarked(df):
     return df
 
 
+def format_data(df):
+    if TARGET_COL in df.columns:
+        df[TARGET_COL] = df[TARGET_COL].astype(int)
+
+    for c in ['Pclass']:
+        df[c] = df[c].astype(int)
+
+    for c in ['Age']:
+        df[c] = df[c].astype(float)
+
+    return df
+
+
+def save_data_profile(df_train):
+    explanatory_cols = [c for c in df_train.columns if c != TARGET_COL]
+    arr_explanatory_col = np.array(explanatory_cols, dtype=str)
+    explanatory_dtype = dict(zip(explanatory_cols,
+                                 [str(type(df_train[c].tolist()[0])) for c in explanatory_cols]))
+
+    prof = {
+        'created': datetime.datetime.now().isoformat(),
+        'script':  __file__,
+        'target': {
+            'name': TARGET_COL,
+            'dtype': str(type(df_train[TARGET_COL].tolist()[0])),
+            'num_classes': len(set(df_train[TARGET_COL])),
+            'classes': list(set(df_train[TARGET_COL]))
+        },
+        'explanatory': {
+            'names': explanatory_cols,
+            'dims': arr_explanatory_col.shape,
+            'dtype': explanatory_dtype
+        }
+    }
+
+    with open(os.path.join(PROCESSED_DATA_PATH, DATA_PROFILE), 'w') as f:
+        json.dump(prof, f, indent=4)
+
+    return prof
+
+
 def main():
     df_both, df_train, df_test = data_load()
 
@@ -128,12 +175,24 @@ def main():
     df_both = ticket(df_both)
     df_both = embarked(df_both)
 
-    df_train = df_both[df_both['PassengerId'].isin(df_train['PassengerId'])]
-    df_test = df_both[df_both['PassengerId'].isin(df_test['PassengerId'])]
+    df_train = df_both[df_both['PassengerId'].isin(df_train['PassengerId'])].copy()
+    df_test = df_both[df_both['PassengerId'].isin(df_test['PassengerId'])].copy()
 
-    os.makedirs(PREPROCESSED_DATA_PATH, exist_ok=True)
-    df_train.to_csv(os.path.join(PREPROCESSED_DATA_PATH, MODELING_DATA_FILE), encoding='utf8', index=False)
-    df_test.to_csv(os.path.join(PREPROCESSED_DATA_PATH, SUBMISSION_DATA_FILE), encoding='utf8', index=False)
+    drop_cols = ['PassengerId', 'Name', 'Sex', 'Ticket', 'Cabin', 'Embarked', 'Salutation']
+    df_train.drop(drop_cols, axis=1, inplace=True)
+    df_test.drop(drop_cols, axis=1, inplace=True)
+    df_test.drop(TARGET_COL, axis=1, inplace=True)
+
+    df_train = format_data(df_train)
+    df_test = format_data(df_test)
+
+    os.makedirs(PROCESSED_DATA_PATH, exist_ok=True)
+    df_train.to_csv(os.path.join(PROCESSED_DATA_PATH, MODELING_DATA_FILE.format('csv')), encoding='utf8', index=False)
+    df_test.to_csv(os.path.join(PROCESSED_DATA_PATH, SUBMISSION_DATA_FILE.format('csv')), encoding='utf8', index=False)
+    df_train.to_pickle(os.path.join(PROCESSED_DATA_PATH, MODELING_DATA_FILE.format('pkl')))
+    df_test.to_pickle(os.path.join(PROCESSED_DATA_PATH, SUBMISSION_DATA_FILE.format('pkl')))
+
+    save_data_profile(df_train)
 
 
 def test():
