@@ -55,8 +55,8 @@ class MyLitModule(pl.LightningModule):
         _ = self.dims
         # self.transform = transforms.Compose([transforms.ToTensor(), transforms.Normalize((0.1307,), (0.3081,))])
 
-        self.encoder = Encoder()    # nn.Sequential(nn.Linear(28 * 28, 128), nn.ReLU(), nn.Linear(128, 32))
-        self.decoder = Decoder()    # nn.Sequential(nn.Linear(32, 128), nn.ReLU(), nn.Linear(128, 28 * 28))
+        self.encoder = Encoder(self.dims, self.num_classes)     # nn.Sequential(nn.Linear(, 128), nn.ReLU(), nn.Linear(128, ))
+        self.decoder = Decoder(self.dims, self.num_classes)     # nn.Sequential(nn.Linear(, 128), nn.ReLU(), nn.Linear(128, ))
 
     def forward(self, x):
         # in lightning, forward defines the prediction/inference actions
@@ -109,8 +109,8 @@ class MyLitModule(pl.LightningModule):
         data_path = os.path.join(self.data_dir, DATA_PATH_PREFIX)
         df_full = pd.read_pickle(os.path.join(data_path, MODELING_DATA_FILE))
 
-        ts_full = torch.tensor(df_full.drop(self.target, axis=1).values)
-        ts_label = torch.tensor(df_full[self.target].values)
+        ts_full = torch.tensor(df_full.drop(self.target, axis=1).values).float()
+        ts_label = torch.tensor(df_full[self.target].values).long()
         ds_full = TensorDataset(ts_full, ts_label)
 
         n_full = len(df_full)
@@ -142,45 +142,35 @@ def main():
     model = MyLitModule()
     # trainer = pl.Trainer()
     trainer = pl.Trainer(max_epochs=10, gpus=n_gpu, callbacks=[MyPrintingCallback()])
-    #trainer.fit(model)    # , DataLoader(train), DataLoader(val))
+    trainer.fit(model)    # , DataLoader(train), DataLoader(val))
     print('training_finished')
 
-    model.prepare_data()
-    model.setup()
-    model.train_dataloader()
     dataiter = iter(model.trainloader)
-    print(dataiter.next())
-
-
-    exit()
-
-    dataiter = iter(autoencoder.trainloader)
-    images, labels = dataiter.next()
-    # print labels
-    print(' '.join('%5s' % autoencoder.classes[labels[j]] for j in range(4)))
-    results = trainer.test(autoencoder)
+    explanatory_values, labels = dataiter.next()
+    results = trainer.test(model)
+    print(explanatory_values)
+    print(labels)
     print(results)
 
-    dataiter = iter(autoencoder.testloader)
-    images, labels = dataiter.next()
-    # print labels
-    print(' '.join('%5s' % autoencoder.classes[labels[j]] for j in range(4)))
+    dataiter = iter(model.testloader)
+    explanatory_values, labels = dataiter.next()
+    print(explanatory_values)
+    print(labels)
+    print(results)
 
     # torchscript
-    torch.jit.save(autoencoder.to_torchscript(), MODEL_FILE)
+    torch.jit.save(model.to_torchscript(), MODEL_FILE)
     trainer.save_checkpoint(CHECKPOINT_FILE)
 
-    pretrained_model = autoencoder.load_from_checkpoint(CHECKPOINT_FILE)
+    pretrained_model = model.load_from_checkpoint(CHECKPOINT_FILE)
     pretrained_model.freeze()
     pretrained_model.eval()
 
-    latent_dim, ver = 32, 10
-    dataiter = iter(autoencoder.testloader)
-    images, labels = dataiter.next()
-    # show images
-
-    encode_img = pretrained_model.encoder(images[0:32].to('cpu').reshape(32, 28 * 28))
-    decode_img = pretrained_model.decoder(encode_img)
+    dataiter = iter(model.testloader)
+    explanatory_values, labels = dataiter.next()
+    print(explanatory_values)
+    print(labels)
+    print(results)
 
 
 if __name__ == '__main__':
