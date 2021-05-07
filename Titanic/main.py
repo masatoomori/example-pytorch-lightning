@@ -2,14 +2,12 @@ import os
 import time
 import json
 import pandas as pd
-import numpy as np
 
 import torch
 from torch import nn
 import torch.nn.functional as F
 
 from torch.utils.data import DataLoader, TensorDataset, random_split
-from torchvision import transforms
 import pytorch_lightning as pl
 from pytorch_lightning.callbacks import Callback
 
@@ -52,11 +50,11 @@ class MyLitModule(pl.LightningModule):
         self.num_classes = DATA_PROFILE['target']['num_classes']
         self.classes = set(DATA_PROFILE['target']['classes'])
         self.dims = set(DATA_PROFILE['explanatory']['dims'])
-        _ = self.dims
-        # self.transform = transforms.Compose([transforms.ToTensor(), transforms.Normalize((0.1307,), (0.3081,))])
 
-        self.encoder = Encoder(self.dims, self.num_classes)     # nn.Sequential(nn.Linear(, 128), nn.ReLU(), nn.Linear(128, ))
-        self.decoder = Decoder(self.dims, self.num_classes)     # nn.Sequential(nn.Linear(, 128), nn.ReLU(), nn.Linear(128, ))
+        self.encoder = Encoder(self.dims,
+                               self.num_classes)  # nn.Sequential(nn.Linear(, 128), nn.ReLU(), nn.Linear(128, ))
+        self.decoder = Decoder(self.dims,
+                               self.num_classes)  # nn.Sequential(nn.Linear(, 128), nn.ReLU(), nn.Linear(128, ))
 
     def forward(self, x):
         # in lightning, forward defines the prediction/inference actions
@@ -66,19 +64,23 @@ class MyLitModule(pl.LightningModule):
     def training_step(self, batch, batch_idx):
         # training_step defined the train loop. It is independent of forward
         x, y = batch
-        x = x.view(x.size(0), -1)
+        x = x.view(x.size(0), -1)  # reshape
         z = self.encoder(x)
-        x_hat = self.decoder(z)
-        loss = F.mse_loss(x_hat, x)
+
+        loss_fn = nn.CrossEntropyLoss()
+        loss = loss_fn(z, y)
         self.log('train_loss', loss)
         return loss
 
     def validation_step(self, batch, batch_idx):
         x, y = batch
-        x = x.view(x.size(0), -1)
+        x = x.view(x.size(0), -1)  # reshape
         z = self.encoder(x)
-        x_hat = self.decoder(z)
-        loss = F.mse_loss(x_hat, x)
+
+        # loss_fn = nn.BCEWithLogitsLoss()
+        # loss_fn = nn.NLLLoss()
+        loss_fn = nn.CrossEntropyLoss()
+        loss = loss_fn(z, y)
         self.log('test_loss', loss)
         return loss
 
@@ -109,8 +111,8 @@ class MyLitModule(pl.LightningModule):
         data_path = os.path.join(self.data_dir, DATA_PATH_PREFIX)
         df_full = pd.read_pickle(os.path.join(data_path, MODELING_DATA_FILE))
 
-        ts_full = torch.tensor(df_full.drop(self.target, axis=1).values).float()
-        ts_label = torch.tensor(df_full[self.target].values).long()
+        ts_full = torch.tensor(df_full.drop(self.target, axis=1).values, dtype=torch.float32)
+        ts_label = torch.tensor(df_full[self.target].values, dtype=torch.long)
         ds_full = TensorDataset(ts_full, ts_label)
 
         n_full = len(df_full)
@@ -142,21 +144,21 @@ def main():
     model = MyLitModule()
     # trainer = pl.Trainer()
     trainer = pl.Trainer(max_epochs=10, gpus=n_gpu, callbacks=[MyPrintingCallback()])
-    trainer.fit(model)    # , DataLoader(train), DataLoader(val))
+    trainer.fit(model)  # , DataLoader(train), DataLoader(val))
     print('training_finished')
 
     dataiter = iter(model.trainloader)
     explanatory_values, labels = dataiter.next()
     results = trainer.test(model)
-    print(explanatory_values)
-    print(labels)
-    print(results)
+    # print(explanatory_values[:5])
+    print(labels[:5])
+    print(results[:5])
 
     dataiter = iter(model.testloader)
     explanatory_values, labels = dataiter.next()
-    print(explanatory_values)
-    print(labels)
-    print(results)
+    # print(explanatory_values[:5])
+    print(labels[:5])
+    print(results[:5])
 
     # torchscript
     torch.jit.save(model.to_torchscript(), MODEL_FILE)
@@ -168,9 +170,9 @@ def main():
 
     dataiter = iter(model.testloader)
     explanatory_values, labels = dataiter.next()
-    print(explanatory_values)
-    print(labels)
-    print(results)
+    # print(explanatory_values[:5])
+    print(labels[:5])
+    print(results[:5])
 
 
 if __name__ == '__main__':

@@ -146,6 +146,7 @@ def save_data_profile(df_train):
     prof = {
         'created': datetime.datetime.now().isoformat(),
         'script':  __file__,
+        'num_records': len(df_train),
         'target': {
             'name': TARGET_COL,
             'dtype': str(type(df_train[TARGET_COL].tolist()[0])),

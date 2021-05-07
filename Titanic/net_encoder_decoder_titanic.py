@@ -1,3 +1,5 @@
+import numpy as np
+
 import torch.nn as nn
 import torch.nn.functional as F
 
@@ -5,13 +7,13 @@ import torch.nn.functional as F
 class Encoder(nn.Module):
     def __init__(self, num_dims, num_classes):
         super(Encoder, self).__init__()
-        num_dim = 1
-        for d in num_dims:
-            num_dim *= d
+        num_dim = np.array(list(num_dims)).prod()
         self.encoder = nn.Sequential(
             nn.Linear(num_dim, 128),
             nn.ReLU(),
-            nn.Linear(128, num_classes)
+            nn.Linear(128, num_classes),
+            nn.Sigmoid(),
+            nn.Linear(num_classes, 1)
         )
 
     def forward(self, x):
@@ -22,10 +24,10 @@ class Encoder(nn.Module):
 class Decoder(nn.Module):
     def __init__(self, num_dims, num_classes):
         super(Decoder, self).__init__()
-        num_dim = 1
-        for d in num_dims:
-            num_dim *= d
+        num_dim = np.array(list(num_dims)).prod()
         self.decoder = nn.Sequential(
+            nn.Linear(num_classes, 1),
+            nn.Sigmoid(),
             nn.Linear(num_classes, 128),
             nn.ReLU(),
             nn.Linear(128, num_dim)
