@@ -5,13 +5,15 @@ import pandas as pd
 ORIGINAL_DATA_PATH = os.path.join('input', 'original')
 PREPROCESSED_DATA_PATH = os.path.join('input', 'preprocessed')
 
-TRAIN_DATA_FILE = 'train.csv'
-TEST_DATA_FILE = 'test.csv'
+TRAIN_ORIG_FILE = 'train.csv'
+TEST_ORIG_FILE = 'test.csv'
+MODELING_DATA_FILE = 'modeling.csv'
+SUBMISSION_DATA_FILE = 'submission.csv'
 
 
 def data_load():
-    df_train = pd.read_csv(os.path.join(ORIGINAL_DATA_PATH, TRAIN_DATA_FILE), encoding='utf8', dtype=object)
-    df_test = pd.read_csv(os.path.join(ORIGINAL_DATA_PATH, TEST_DATA_FILE), encoding='utf8', dtype=object)
+    df_train = pd.read_csv(os.path.join(ORIGINAL_DATA_PATH, TRAIN_ORIG_FILE), encoding='utf8', dtype=object)
+    df_test = pd.read_csv(os.path.join(ORIGINAL_DATA_PATH, TEST_ORIG_FILE), encoding='utf8', dtype=object)
     for df in [df_train, df_test]:
         for c in ['SibSp', 'Parch', 'Survived']:
             if c in df.columns:
@@ -129,8 +131,9 @@ def main():
     df_train = df_both[df_both['PassengerId'].isin(df_train['PassengerId'])]
     df_test = df_both[df_both['PassengerId'].isin(df_test['PassengerId'])]
 
-    df_train.to_csv(os.path.join(PREPROCESSED_DATA_PATH, TRAIN_DATA_FILE), encoding='utf8', index=False)
-    df_test.to_csv(os.path.join(PREPROCESSED_DATA_PATH, TEST_DATA_FILE), encoding='utf8', index=False)
+    os.makedirs(PREPROCESSED_DATA_PATH, exist_ok=True)
+    df_train.to_csv(os.path.join(PREPROCESSED_DATA_PATH, MODELING_DATA_FILE), encoding='utf8', index=False)
+    df_test.to_csv(os.path.join(PREPROCESSED_DATA_PATH, SUBMISSION_DATA_FILE), encoding='utf8', index=False)
 
 
 def test():

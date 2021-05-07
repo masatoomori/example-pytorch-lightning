@@ -139,9 +139,11 @@ Titanic/input/preprocessed/
 
 # Lightning Files
 MNIST/lightning_files/
+Titanic/lightning_files/
 
 # Training Log
 MNIST/lightning_logs/
+Titanic/lightning_logs/
 
 # Modeling Result
 MNIST/result/
