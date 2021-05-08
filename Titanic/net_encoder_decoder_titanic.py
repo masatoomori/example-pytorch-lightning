@@ -7,7 +7,7 @@ import torch.nn.functional as F
 class Encoder(nn.Module):
     def __init__(self, num_dims, num_classes):
         super(Encoder, self).__init__()
-        num_dim = np.array(list(num_dims)).prod()
+        num_dim = int(np.array(list(num_dims)).prod())      # np.intはtorch.jit.saveで保存できないのでintに変換する
         self.encoder = nn.Sequential(
             nn.Linear(num_dim, 128),
             nn.ReLU(),
@@ -24,7 +24,7 @@ class Encoder(nn.Module):
 class Decoder(nn.Module):
     def __init__(self, num_dims, num_classes):
         super(Decoder, self).__init__()
-        num_dim = np.array(list(num_dims)).prod()
+        num_dim = int(np.array(list(num_dims)).prod())      # np.intはtorch.jit.saveで保存できないのでintに変換する
         self.decoder = nn.Sequential(
             nn.Linear(num_classes, 1),
             nn.Sigmoid(),

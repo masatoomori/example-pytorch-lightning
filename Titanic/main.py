@@ -26,28 +26,15 @@ MODELING_DATA_FILE = 'modeling.pkl'
 SUBMISSION_DATA_FILE = 'submission.pkl'
 
 RESULT_PATH = os.path.join(os.curdir, 'result')
-MODEL_FILE = os.path.join(RESULT_PATH, 'model.pt')
-CHECKPOINT_FILE = os.path.join(RESULT_PATH, 'checkpoint.ckpt')
+MODEL_FILE = os.path.join(RESULT_PATH, 'model.pth')
+TORCH_SCRIPT_FILE = os.path.join(RESULT_PATH, 'model.pt')
 
 N_CPU = min(2, os.cpu_count())
 os.makedirs(RESULT_PATH, exist_ok=True)
 
 TEST_RATIO = 0.2
 VALIDATION_RATIO = 0.2
-
-
-def my_loss(z, y):
-    y_hat = torch.argmax(z, dim=1)
-    # loss_fn = nn.MSELoss(y_hat, y)
-    loss_fn = nn.BCEWithLogitsLoss()
-    # loss_fn = nn.NLLLoss()
-    # loss_fn = nn.CrossEntropyLoss()
-
-    loss = loss_fn(y_hat.float(), y.float())
-
-    print(loss)
-
-    return loss
+MAX_EPOCH = 100
 
 
 class MyPrintingCallback(Callback):
@@ -154,36 +141,36 @@ def main():
 
     model = MyLitModule()
     # trainer = pl.Trainer()
-    trainer = pl.Trainer(max_epochs=10, gpus=n_gpu, callbacks=[MyPrintingCallback()])
+    trainer = pl.Trainer(max_epochs=MAX_EPOCH, gpus=n_gpu, callbacks=[MyPrintingCallback()])
     trainer.fit(model)  # , DataLoader(train), DataLoader(val))
     print('training_finished')
 
-    dataiter = iter(model.trainloader)
+    # dataiter = iter(model.train_dataloader())
+    # explanatory_values, labels = dataiter.next()
+    # print(explanatory_values[:5])
+    # print(labels[:5])
+
+    dataiter = iter(model.test_dataloader())
     explanatory_values, labels = dataiter.next()
     results = trainer.test(model)
-    # print(explanatory_values[:5])
+    print(explanatory_values[:5])
     print(labels[:5])
-    print(results[:5])
+    print(results)
 
-    dataiter = iter(model.testloader)
+    # save model
+    torch.save(model.state_dict(), MODEL_FILE)
+    torch.jit.save(model.to_torchscript(), TORCH_SCRIPT_FILE)
+
+    # load model
+    model = MyLitModule()
+    model.setup()
+    model.load_state_dict(torch.load(MODEL_FILE))
+    dataiter = iter(model.test_dataloader())
     explanatory_values, labels = dataiter.next()
-    # print(explanatory_values[:5])
+    results = trainer.test(model)
+    print(explanatory_values[:5])
     print(labels[:5])
-    print(results[:5])
-
-    # torchscript
-    torch.jit.save(model.to_torchscript(), MODEL_FILE)
-    trainer.save_checkpoint(CHECKPOINT_FILE)
-
-    pretrained_model = model.load_from_checkpoint(CHECKPOINT_FILE)
-    pretrained_model.freeze()
-    pretrained_model.eval()
-
-    dataiter = iter(model.testloader)
-    explanatory_values, labels = dataiter.next()
-    # print(explanatory_values[:5])
-    print(labels[:5])
-    print(results[:5])
+    print(results)
 
 
 if __name__ == '__main__':
