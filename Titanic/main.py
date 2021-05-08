@@ -35,6 +35,7 @@ os.makedirs(RESULT_PATH, exist_ok=True)
 TEST_RATIO = 0.2
 VALIDATION_RATIO = 0.2
 MAX_EPOCH = 100
+LEARNING_RATE = 1e-3
 
 
 class MyPrintingCallback(Callback):
@@ -87,7 +88,7 @@ class MyLitModule(pl.LightningModule):
         return self.validation_step(batch, batch_idx)
 
     def configure_optimizers(self):
-        optimizer = torch.optim.Adam(self.parameters(), lr=1e-3)
+        optimizer = torch.optim.Adam(self.parameters(), lr=LEARNING_RATE)
         return optimizer
 
     def prepare_data(self):
@@ -123,16 +124,15 @@ class MyLitModule(pl.LightningModule):
         self.ds_train, self.ds_val = torch.utils.data.random_split(ds_modeling, [n_train, n_val])
 
     def train_dataloader(self):
-        self.trainloader = DataLoader(self.ds_train, shuffle=True, drop_last=True, batch_size=32, num_workers=N_CPU)
         # get some random training data
+        self.trainloader = DataLoader(self.ds_train, shuffle=True, drop_last=True, batch_size=32, num_workers=N_CPU)
         return self.trainloader
 
     def val_dataloader(self):
         return DataLoader(self.ds_val, shuffle=False, batch_size=32, num_workers=N_CPU)
 
     def test_dataloader(self):
-        self.testloader = DataLoader(self.ds_test, shuffle=False, batch_size=32, num_workers=N_CPU)
-        return self.testloader
+        return DataLoader(self.ds_test, shuffle=False, batch_size=32, num_workers=N_CPU)
 
 
 def main():
