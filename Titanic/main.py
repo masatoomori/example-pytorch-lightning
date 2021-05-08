@@ -1,6 +1,7 @@
 import os
 import time
 import json
+import numpy as np
 import pandas as pd
 
 import torch
@@ -35,6 +36,20 @@ TEST_RATIO = 0.2
 VALIDATION_RATIO = 0.2
 
 
+def my_loss(z, y):
+    y_hat = torch.argmax(z, dim=1)
+    # loss_fn = nn.MSELoss(y_hat, y)
+    loss_fn = nn.BCEWithLogitsLoss()
+    # loss_fn = nn.NLLLoss()
+    # loss_fn = nn.CrossEntropyLoss()
+
+    loss = loss_fn(y_hat.float(), y.float())
+
+    print(loss)
+
+    return loss
+
+
 class MyPrintingCallback(Callback):
     def on_epoch_end(self, trainer, pl_module):
         print('')
@@ -64,23 +79,19 @@ class MyLitModule(pl.LightningModule):
     def training_step(self, batch, batch_idx):
         # training_step defined the train loop. It is independent of forward
         x, y = batch
-        x = x.view(x.size(0), -1)  # reshape
-        z = self.encoder(x)
+        y_hat = self.encoder(x).squeeze()
 
-        loss_fn = nn.CrossEntropyLoss()
-        loss = loss_fn(z, y)
+        loss_fn = nn.BCEWithLogitsLoss()
+        loss = loss_fn(y_hat.float(), y.float())
         self.log('train_loss', loss)
         return loss
 
     def validation_step(self, batch, batch_idx):
         x, y = batch
-        x = x.view(x.size(0), -1)  # reshape
-        z = self.encoder(x)
+        y_hat = self.encoder(x).squeeze()
 
-        # loss_fn = nn.BCEWithLogitsLoss()
-        # loss_fn = nn.NLLLoss()
-        loss_fn = nn.CrossEntropyLoss()
-        loss = loss_fn(z, y)
+        loss_fn = nn.BCEWithLogitsLoss()
+        loss = loss_fn(y_hat.float(), y.float())
         self.log('test_loss', loss)
         return loss
 

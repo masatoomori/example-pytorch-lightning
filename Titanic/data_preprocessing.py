@@ -134,7 +134,33 @@ def format_data(df):
     for c in ['Age']:
         df[c] = df[c].astype(float)
 
+    for c in ['Cabin']:
+        df[c] = df[c].astype(str)
+
     return df
+
+
+def fill_missing_values(df_target, df_base, drop_cols):
+    # 欠測値をcul_colごとの数値の場合は中央値、文字列の場合は最頻値で埋める
+    cut_col = 'Salutation'
+    for c in df_target.columns:
+        if c != TARGET_COL and c not in drop_cols:
+            dtype = type(df_base[c].tolist()[0])
+            print(c, dtype)
+            if dtype is str:
+                df_f = df_base.groupby(cut_col)[c].apply(lambda x: x.mode()).reset_index()[[cut_col, c]]
+                df_f.rename(columns={c: 'na_value'}, inplace=True)
+                df_target = pd.merge(df_target, df_f, how='left', on=cut_col)
+                df_target[c].fillna(df_f['na_value'], inplace=True)
+                df_target.drop('na_value', axis=1, inplace=True)
+            elif dtype in (float, int):
+                df_f = df_base[[cut_col, c]].groupby(cut_col).median().reset_index()
+                df_f.rename(columns={c: 'na_value'}, inplace=True)
+                df_target = pd.merge(df_target, df_f, how='left', on=cut_col)
+                df_target[c].fillna(df_f['na_value'], inplace=True)
+                df_target.drop('na_value', axis=1, inplace=True)
+
+    return df_target
 
 
 def save_data_profile(df_train):
@@ -167,6 +193,8 @@ def save_data_profile(df_train):
 
 
 def main():
+    drop_cols = ['PassengerId', 'Name', 'Sex', 'Ticket', 'Cabin', 'Embarked', 'Salutation']
+
     df_both, df_train, df_test = data_load()
 
     # 変数を作成する
@@ -179,13 +207,16 @@ def main():
     df_train = df_both[df_both['PassengerId'].isin(df_train['PassengerId'])].copy()
     df_test = df_both[df_both['PassengerId'].isin(df_test['PassengerId'])].copy()
 
-    drop_cols = ['PassengerId', 'Name', 'Sex', 'Ticket', 'Cabin', 'Embarked', 'Salutation']
-    df_train.drop(drop_cols, axis=1, inplace=True)
-    df_test.drop(drop_cols, axis=1, inplace=True)
     df_test.drop(TARGET_COL, axis=1, inplace=True)
 
     df_train = format_data(df_train)
     df_test = format_data(df_test)
+
+    df_train = fill_missing_values(df_train, df_train, drop_cols)
+    df_test = fill_missing_values(df_test, df_train, drop_cols)
+
+    df_train.drop(drop_cols, axis=1, inplace=True)
+    df_test.drop(drop_cols, axis=1, inplace=True)
 
     os.makedirs(PROCESSED_DATA_PATH, exist_ok=True)
     df_train.to_csv(os.path.join(PROCESSED_DATA_PATH, MODELING_DATA_FILE.format('csv')), encoding='utf8', index=False)
