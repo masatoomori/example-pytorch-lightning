@@ -21,10 +21,12 @@ RESULT_PATH = os.path.join(os.curdir, 'result')
 MODEL_FILE = os.path.join(RESULT_PATH, 'model.pt')
 CHECKPOINT_FILE = os.path.join(RESULT_PATH, 'checkpoint.ckpt')
 
-NUM_WORKERS = min(2, os.cpu_count())
+N_CPU = min(2, os.cpu_count())
 os.makedirs(RESULT_PATH, exist_ok=True)
 
 VALIDATION_RATIO = 0.2
+LEANING_RATE = 1e-3
+MAX_EPOCH = 100
 
 
 # functions to show an image
@@ -90,7 +92,7 @@ class LitAutoEncoder(pl.LightningModule):
         return self.validation_step(batch, batch_idx)
 
     def configure_optimizers(self):
-        optimizer = torch.optim.Adam(self.parameters(), lr=1e-3)
+        optimizer = torch.optim.Adam(self.parameters(), lr=LEANING_RATE)
         return optimizer
 
     def prepare_data(self):
@@ -107,16 +109,15 @@ class LitAutoEncoder(pl.LightningModule):
         self.mnist_test = MNIST(self.data_dir, train=False, transform=self.transform)
 
     def train_dataloader(self):
-        self.trainloader = DataLoader(self.mnist_train, shuffle=True, drop_last=True, batch_size=32,
-                                      num_workers=NUM_WORKERS)
+        self.trainloader = DataLoader(self.mnist_train, shuffle=True, drop_last=True, batch_size=32, num_workers=N_CPU)
         # get some random training images
         return self.trainloader
 
     def val_dataloader(self):
-        return DataLoader(self.mnist_val, shuffle=False, batch_size=32, num_workers=NUM_WORKERS)
+        return DataLoader(self.mnist_val, shuffle=False, batch_size=32, num_workers=N_CPU)
 
     def test_dataloader(self):
-        self.testloader = DataLoader(self.mnist_test, shuffle=False, batch_size=32, num_workers=NUM_WORKERS)
+        self.testloader = DataLoader(self.mnist_test, shuffle=False, batch_size=32, num_workers=N_CPU)
         return self.testloader
 
 
@@ -127,7 +128,7 @@ def main():
     autoencoder = LitAutoEncoder()
 
     # trainer = pl.Trainer()
-    trainer = pl.Trainer(max_epochs=10, gpus=n_gpu, callbacks=[MyPrintingCallback()])
+    trainer = pl.Trainer(max_epochs=MAX_EPOCH, gpus=n_gpu, callbacks=[MyPrintingCallback()])
     trainer.fit(autoencoder)    # , DataLoader(train), DataLoader(val))
     print('training_finished')
 

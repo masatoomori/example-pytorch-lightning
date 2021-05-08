@@ -151,13 +151,13 @@ def fill_missing_values(df_target, df_base, drop_cols):
                 df_f = df_base.groupby(cut_col)[c].apply(lambda x: x.mode()).reset_index()[[cut_col, c]]
                 df_f.rename(columns={c: 'na_value'}, inplace=True)
                 df_target = pd.merge(df_target, df_f, how='left', on=cut_col)
-                df_target[c].fillna(df_f['na_value'], inplace=True)
+                df_target[c].fillna(df_target['na_value'], inplace=True)
                 df_target.drop('na_value', axis=1, inplace=True)
             elif dtype in (float, int):
                 df_f = df_base[[cut_col, c]].groupby(cut_col).median().reset_index()
                 df_f.rename(columns={c: 'na_value'}, inplace=True)
                 df_target = pd.merge(df_target, df_f, how='left', on=cut_col)
-                df_target[c].fillna(df_f['na_value'], inplace=True)
+                df_target[c].fillna(df_target['na_value'], inplace=True)
                 df_target.drop('na_value', axis=1, inplace=True)
 
     return df_target
