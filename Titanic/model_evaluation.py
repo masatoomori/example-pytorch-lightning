@@ -34,7 +34,7 @@ os.makedirs(RESULT_PATH, exist_ok=True)
 
 TEST_RATIO = 0.2
 VALIDATION_RATIO = 0.2
-MAX_EPOCH = 100
+MAX_EPOCH = 1
 LEARNING_RATE = 1e-3
 
 
@@ -139,40 +139,19 @@ def main():
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
     n_gpu = 0 if device == torch.device('cpu') else 1
 
-    model = MyLitModule()
-    # trainer = pl.Trainer()
-    trainer = pl.Trainer(max_epochs=MAX_EPOCH, gpus=n_gpu, callbacks=[MyPrintingCallback()])
-    trainer.fit(model)  # , DataLoader(train), DataLoader(val))
-    print('training_finished')
-
-    # dataiter = iter(model.train_dataloader())
-    # explanatory_values, labels = dataiter.next()
-    # print(explanatory_values[:5])
-    # print(labels[:5])
-
-    dataiter = iter(model.test_dataloader())
-    explanatory_values, labels = dataiter.next()
-    results = trainer.test(model)
-    print(explanatory_values[:5])
-    print(labels[:5])
-    print(results)
-
-    # save model
-    torch.save(model.state_dict(), MODEL_FILE)
-    torch.jit.save(model.to_torchscript(), TORCH_SCRIPT_FILE)
-    print('model saved')
+    # load data
+    df_full = pd.read_pickle(os.path.join(LIGHTNING_PATH, DATA_PATH_PREFIX, MODELING_DATA_FILE))
+    X = torch.tensor(df_full.drop(DATA_PROFILE['target']['name'], axis=1).values, dtype=torch.float32)
+    y = df_full[DATA_PROFILE['target']['name']].values
 
     # load model
     model = MyLitModule()
     model.setup()
     model.load_state_dict(torch.load(MODEL_FILE))
-    dataiter = iter(model.test_dataloader())
-    explanatory_values, labels = dataiter.next()
-    results = trainer.test(model)
-    print(explanatory_values[:5])
-    print(labels[:5])
-    print(results)
-    print('model successfully loaded')
+
+    y_hat = model.encoder(X).squeeze().detach().numpy()
+    y_pred = np.where(y_hat > 0.1, 1, 0)
+    print('accuracy: ', sum(y == y_pred) / y.size)
 
 
 if __name__ == '__main__':
