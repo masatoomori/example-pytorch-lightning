@@ -9,7 +9,7 @@
 を利用する。ダウンロード後、下記コマンドを実行する
 
 ```shell
-$ pip install ~/path/to/torch-1.8.0a0-cp39-cp39-macosx_11_0_arm64.whl
+$ pip install /path/to/torch-1.8.0a0-cp39-cp39-macosx_11_0_arm64.whl
 ```
 
 ### install PyTorch-Lightning
