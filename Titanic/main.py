@@ -53,11 +53,10 @@ class MyLitModule(pl.LightningModule):
         self.num_classes = DATA_PROFILE['target']['num_classes']
         self.classes = set(DATA_PROFILE['target']['classes'])
         self.dims = set(DATA_PROFILE['explanatory']['dims'])
+        self.label_dtype = torch.long if DATA_PROFILE['prediction_type'] == 'classification' else torch.float32
 
-        self.encoder = Encoder(self.dims,
-                               self.num_classes)  # nn.Sequential(nn.Linear(, 128), nn.ReLU(), nn.Linear(128, ))
-        self.decoder = Decoder(self.dims,
-                               self.num_classes)  # nn.Sequential(nn.Linear(, 128), nn.ReLU(), nn.Linear(128, ))
+        self.encoder = Encoder(self.dims, self.num_classes)
+        self.decoder = Decoder(self.dims, self.num_classes)
 
     def forward(self, x):
         # in lightning, forward defines the prediction/inference actions
@@ -111,7 +110,7 @@ class MyLitModule(pl.LightningModule):
         df_full = pd.read_pickle(os.path.join(data_path, MODELING_DATA_FILE))
 
         ts_full = torch.tensor(df_full.drop(self.target, axis=1).values, dtype=torch.float32)
-        ts_label = torch.tensor(df_full[self.target].values, dtype=torch.long)
+        ts_label = torch.tensor(df_full[self.target].values, dtype=self.label_dtype)
         ds_full = TensorDataset(ts_full, ts_label)
 
         n_full = len(df_full)
