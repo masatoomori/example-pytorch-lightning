@@ -1,3 +1,4 @@
+import argparse
 import os
 import time
 import json
@@ -68,7 +69,10 @@ class MyLitModule(pl.LightningModule):
         x, y = batch
         y_hat = self.encoder(x).squeeze()
 
-        loss_fn = nn.BCEWithLogitsLoss()
+        if self.num_classes == 1:
+            loss_fn = nn.MSELoss()
+        else:
+            loss_fn = nn.BCEWithLogitsLoss()
         loss = loss_fn(y_hat.float(), y.float())
         self.log('train_loss', loss)
         return loss
@@ -77,7 +81,10 @@ class MyLitModule(pl.LightningModule):
         x, y = batch
         y_hat = self.encoder(x).squeeze()
 
-        loss_fn = nn.BCEWithLogitsLoss()
+        if self.num_classes == 1:
+            loss_fn = nn.MSELoss()
+        else:
+            loss_fn = nn.BCEWithLogitsLoss()
         loss = loss_fn(y_hat.float(), y.float())
         self.log('test_loss', loss)
         return loss
@@ -88,6 +95,7 @@ class MyLitModule(pl.LightningModule):
 
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(self.parameters(), lr=LEARNING_RATE)
+        # optimizer = torch.optim.SGD(self.parameters(), lr=LEARNING_RATE)
         return optimizer
 
     def prepare_data(self):
@@ -135,43 +143,55 @@ class MyLitModule(pl.LightningModule):
 
 
 def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--train', '-t', action='store_true')
+    parser.add_argument('--discard', '-d', action='store_true')
+    parser.add_argument('--evaluate', '-e', action='store_true')
+    args = parser.parse_args()
+
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
     n_gpu = 0 if device == torch.device('cpu') else 1
 
     model = MyLitModule()
-    # trainer = pl.Trainer()
     trainer = pl.Trainer(max_epochs=MAX_EPOCH, gpus=n_gpu, callbacks=[MyPrintingCallback()])
-    trainer.fit(model)  # , DataLoader(train), DataLoader(val))
-    print('training_finished')
 
-    # dataiter = iter(model.train_dataloader())
-    # explanatory_values, labels = dataiter.next()
-    # print(explanatory_values[:5])
-    # print(labels[:5])
+    if args.train:
+        # trainer = pl.Trainer()
+        trainer.fit(model)  # , DataLoader(train), DataLoader(val))
+        print('training_finished')
 
-    dataiter = iter(model.test_dataloader())
-    explanatory_values, labels = dataiter.next()
-    results = trainer.test(model)
-    print(explanatory_values[:5])
-    print(labels[:5])
-    print(results)
+        dataiter = iter(model.test_dataloader())
+        explanatory_values, labels = dataiter.next()
+        results = trainer.test(model)
+        print(explanatory_values[:5])
+        print(labels[:5])
+        print(results)
 
-    # save model
-    torch.save(model.state_dict(), MODEL_FILE)
-    torch.jit.save(model.to_torchscript(), TORCH_SCRIPT_FILE)
-    print('model saved')
+        if args.discard:
+            print('trained model discarded')
+        else:
+            torch.save(model.state_dict(), MODEL_FILE)
+            torch.jit.save(model.to_torchscript(), TORCH_SCRIPT_FILE)
+            print('trained model saved')
 
-    # load model
-    model = MyLitModule()
-    model.setup()
-    model.load_state_dict(torch.load(MODEL_FILE))
-    dataiter = iter(model.test_dataloader())
-    explanatory_values, labels = dataiter.next()
-    results = trainer.test(model)
-    print(explanatory_values[:5])
-    print(labels[:5])
-    print(results)
-    print('model successfully loaded')
+    if args.evaluate:
+        # load model
+        if args.train:
+            print('evaluate trained model')
+        else:
+            model = MyLitModule()
+            model.setup()
+            model.load_state_dict(torch.load(MODEL_FILE))
+            print('evaluate loaded model')
+
+        # load data
+        df_full = pd.read_pickle(os.path.join(LIGHTNING_PATH, DATA_PATH_PREFIX, MODELING_DATA_FILE))
+        X = torch.tensor(df_full.drop(DATA_PROFILE['target']['name'], axis=1).values, dtype=torch.float32)
+        y = df_full[DATA_PROFILE['target']['name']].values
+        y_hat = model.encoder(X).squeeze().detach().numpy()
+
+        y_pred = np.where(y_hat > 0.1, 1, 0)
+        print('accuracy: ', sum(y == y_pred) / y.size)
 
 
 if __name__ == '__main__':
