@@ -163,28 +163,51 @@ def fill_missing_values(df_target, df_base, drop_cols):
     return df_target
 
 
-def save_data_profile(df_train):
+def save_data_profile(df_train, prediction_type):
     explanatory_cols = [c for c in df_train.columns if c != TARGET_COL]
     arr_explanatory_col = np.array(explanatory_cols, dtype=str)
     explanatory_dtype = dict(zip(explanatory_cols,
                                  [str(type(df_train[c].tolist()[0])) for c in explanatory_cols]))
 
-    prof = {
-        'created': datetime.datetime.now().isoformat(),
-        'script':  __file__,
-        'num_records': len(df_train),
-        'target': {
-            'name': TARGET_COL,
-            'dtype': str(type(df_train[TARGET_COL].tolist()[0])),
-            'num_classes': len(set(df_train[TARGET_COL])),
-            'classes': list(set(df_train[TARGET_COL]))
-        },
-        'explanatory': {
-            'names': explanatory_cols,
-            'dims': arr_explanatory_col.shape,
-            'dtype': explanatory_dtype
+    if prediction_type == 'classification':
+        prof = {
+            'created': datetime.datetime.now().isoformat(),
+            'script':  __file__,
+            'num_records': len(df_train),
+            'prediction_type': prediction_type,
+            'target': {
+                'name': TARGET_COL,
+                'dtype': str(type(df_train[TARGET_COL].tolist()[0])),
+                'num_classes': len(set(df_train[TARGET_COL])),
+                'classes': list(set(df_train[TARGET_COL]))
+            },
+            'explanatory': {
+                'names': explanatory_cols,
+                'dims': arr_explanatory_col.shape,
+                'dtype': explanatory_dtype
+            }
         }
-    }
+    elif prediction_type == 'regression':
+        prof = {
+            'created': datetime.datetime.now().isoformat(),
+            'script': __file__,
+            'num_records': len(df_train),
+            'prediction_type': prediction_type,
+            'target': {
+                'name': TARGET_COL,
+                'dtype': str(type(df_train[TARGET_COL].tolist()[0])),
+                'num_classes': 1,
+                'classes': [min(df_train[TARGET_COL]), max(df_train[TARGET_COL])]
+            },
+            'explanatory': {
+                'names': explanatory_cols,
+                'dims': arr_explanatory_col.shape,
+                'dtype': explanatory_dtype
+            }
+        }
+    else:
+        print('prediction type should be either regression or classification')
+        prof = {}
 
     with open(os.path.join(PROCESSED_DATA_PATH, DATA_PROFILE), 'w') as f:
         json.dump(prof, f, indent=4)
@@ -224,7 +247,7 @@ def main():
     df_train.to_pickle(os.path.join(PROCESSED_DATA_PATH, MODELING_DATA_FILE.format('pkl')))
     df_test.to_pickle(os.path.join(PROCESSED_DATA_PATH, SUBMISSION_DATA_FILE.format('pkl')))
 
-    save_data_profile(df_train)
+    save_data_profile(df_train, 'classification')
 
 
 def test():

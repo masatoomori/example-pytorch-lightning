@@ -179,3 +179,4 @@ if __name__ == '__main__':
     start_time = time.time()
     main()
     print('elapsed time: {:.3f} [sec]'.format(time.time() - start_time))
+    print("'$ tensorboard --logdir ./lightning_logs' to check result")
