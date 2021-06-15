@@ -27,7 +27,7 @@
 │           └── submission.pkl (目的変数がないデータ。Kaggle 提出用)
 ├── lightning_logs
 ├── modeling
-│   ├── model_evaluation.py
+│   ├── main.py
 │   └── net_encoder_decoder_titanic.py
 └── output
     ├── data
