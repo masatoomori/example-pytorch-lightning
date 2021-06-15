@@ -216,8 +216,9 @@ def main():
         df_submission = pd.read_pickle(os.path.join(LIGHTNING_PATH, DATA_PATH_PREFIX, SUBMISSION_DATA_FILE))
         df_submission[DATA_PROFILE['target']['name']] = None        # 形を整える為にカラムを追加する
         X = torch.tensor(df_submission.drop(DATA_PROFILE['target']['name'], axis=1).values, dtype=torch.float32)
-        y = df_submission[DATA_PROFILE['target']['name']].values
         y_hat = model.encoder(X).squeeze().detach().numpy()
+        df_submission[DATA_PROFILE['target']['name']] = y_hat
+        df_submission.to_csv(PREDICTION_RESULT_FILE, index=False)
 
 
 if __name__ == '__main__':
