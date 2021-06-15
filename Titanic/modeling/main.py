@@ -15,23 +15,31 @@ from pytorch_lightning.callbacks import Callback
 
 from net_encoder_decoder_titanic import Encoder, Decoder
 
-# data_preprocessing.pyで作成したファイル
-MODELING_ORIG_FILE = os.path.join(os.curdir, 'input', 'preprocessed', 'modeling.pkl')
-SUBMISSION_ORIG_FILE = os.path.join(os.curdir, 'input', 'preprocessed', 'submission.pkl')
-DATA_PROFILE_FILE = os.path.join(os.curdir, 'input', 'preprocessed', 'data_profile.json')
+HOME_PATH = os.pardir
+MODELING_DATA_FILE = 'modeling.pkl'
+SUBMISSION_DATA_FILE = 'submission.pkl'
+ORIG_DATA_PATH = os.path.join(HOME_PATH, 'input', 'preprocessed')
+
+# transform_data.pyで作成したファイル
+MODELING_ORIG_FILE = os.path.join(ORIG_DATA_PATH, MODELING_DATA_FILE)
+SUBMISSION_ORIG_FILE = os.path.join(ORIG_DATA_PATH, SUBMISSION_DATA_FILE)
+DATA_PROFILE_FILE = os.path.join(ORIG_DATA_PATH, 'data_profile.json')
 DATA_PROFILE = json.load(open(DATA_PROFILE_FILE))
 
 LIGHTNING_PATH = os.path.join(os.curdir, 'lightning_files')
 DATA_PATH_PREFIX = os.path.join('input', 'processed')
-MODELING_DATA_FILE = 'modeling.pkl'
-SUBMISSION_DATA_FILE = 'submission.pkl'
 
-RESULT_PATH = os.path.join(os.curdir, 'result')
-MODEL_FILE = os.path.join(RESULT_PATH, 'model.pth')
-TORCH_SCRIPT_FILE = os.path.join(RESULT_PATH, 'model.pt')
+RESULT_PATH = os.path.join(HOME_PATH, 'output')
+MODEL_RESULT_PATH = os.path.join(RESULT_PATH, 'model')
+DATA_RESULT_PATH = os.path.join(RESULT_PATH, 'data')
+MODEL_FILE = os.path.join(MODEL_RESULT_PATH, 'model.pth')
+FULL_RESULT_FILE = os.path.join(DATA_RESULT_PATH, 'full_result.csv')
+PREDICTION_RESULT_FILE = os.path.join(DATA_RESULT_PATH, 'prediction_result.csv')
+
+os.makedirs(MODEL_RESULT_PATH, exist_ok=True)
+os.makedirs(DATA_RESULT_PATH, exist_ok=True)
 
 N_CPU = min(2, os.cpu_count())
-os.makedirs(RESULT_PATH, exist_ok=True)
 
 TEST_RATIO = 0.2
 VALIDATION_RATIO = 0.2
@@ -147,6 +155,7 @@ def main():
     parser.add_argument('--train', '-t', action='store_true')
     parser.add_argument('--discard', '-d', action='store_true')
     parser.add_argument('--evaluate', '-e', action='store_true')
+    parser.add_argument('--predict', '-p', action='store_true')
     args = parser.parse_args()
 
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
@@ -171,8 +180,8 @@ def main():
             print('trained model discarded')
         else:
             torch.save(model.state_dict(), MODEL_FILE)
-            torch.jit.save(model.to_torchscript(), TORCH_SCRIPT_FILE)
             print('trained model saved')
+        print("'$ tensorboard --logdir ./lightning_logs' to check result")
 
     if args.evaluate:
         # load model
@@ -193,9 +202,25 @@ def main():
         y_pred = np.where(y_hat > 0.1, 1, 0)
         print('accuracy: ', sum(y == y_pred) / y.size)
 
+    if args.predict:
+        # load model
+        if args.train:
+            print('evaluate trained model')
+        else:
+            model = MyLitModule()
+            model.setup()
+            model.load_state_dict(torch.load(MODEL_FILE))
+            print('evaluate loaded model')
+
+        # load data
+        df_submission = pd.read_pickle(os.path.join(LIGHTNING_PATH, DATA_PATH_PREFIX, SUBMISSION_DATA_FILE))
+        df_submission[DATA_PROFILE['target']['name']] = None        # 形を整える為にカラムを追加する
+        X = torch.tensor(df_submission.drop(DATA_PROFILE['target']['name'], axis=1).values, dtype=torch.float32)
+        y = df_submission[DATA_PROFILE['target']['name']].values
+        y_hat = model.encoder(X).squeeze().detach().numpy()
+
 
 if __name__ == '__main__':
     start_time = time.time()
     main()
     print('elapsed time: {:.3f} [sec]'.format(time.time() - start_time))
-    print("'$ tensorboard --logdir ./lightning_logs' to check result")

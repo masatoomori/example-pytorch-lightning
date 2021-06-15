@@ -5,11 +5,12 @@ import datetime
 import pandas as pd
 import numpy as np
 
-ORIGINAL_DATA_PATH = os.path.join('input', 'original')
-PROCESSED_DATA_PATH = os.path.join('input', 'preprocessed')
+HOME_PATH = os.pardir
 
-TRAIN_ORIG_FILE = 'train.csv'
-TEST_ORIG_FILE = 'test.csv'
+INPUT_PATH = os.path.join(HOME_PATH, 'input', 'original')
+OUTPUT_PATH = os.path.join(HOME_PATH, 'input', 'preprocessed')
+os.makedirs(OUTPUT_PATH, exist_ok=True)
+
 MODELING_DATA_FILE = 'modeling.{}'
 SUBMISSION_DATA_FILE = 'submission.{}'
 DATA_PROFILE = 'data_profile.json'
@@ -18,19 +19,19 @@ TARGET_COL = 'Survived'
 
 
 def data_load():
-    df_train = pd.read_csv(os.path.join(ORIGINAL_DATA_PATH, TRAIN_ORIG_FILE), encoding='utf8', dtype=object)
-    df_test = pd.read_csv(os.path.join(ORIGINAL_DATA_PATH, TEST_ORIG_FILE), encoding='utf8', dtype=object)
-    for df in [df_train, df_test]:
+    df_modeling = pd.read_csv(os.path.join(INPUT_PATH, MODELING_DATA_FILE.format('csv')), encoding='utf8', dtype=object)
+    df_submission = pd.read_csv(os.path.join(INPUT_PATH, SUBMISSION_DATA_FILE.format('csv')), encoding='utf8', dtype=object)
+    for df in [df_modeling, df_submission]:
         for c in ['SibSp', 'Parch', 'Survived']:
             if c in df.columns:
                 df[c] = df[c].astype(int)
 
-    for df in [df_train, df_test]:
+    for df in [df_modeling, df_submission]:
         for c in ['Fare']:
             if c in df.columns:
                 df[c] = pd.to_numeric(df[c])
 
-    return df_train.append(df_test, sort=False), df_train, df_test
+    return df_modeling.append(df_submission, sort=False), df_modeling, df_submission
 
 
 def cabin(df):
@@ -209,7 +210,7 @@ def save_data_profile(df_train, prediction_type):
         print('prediction type should be either regression or classification')
         prof = {}
 
-    with open(os.path.join(PROCESSED_DATA_PATH, DATA_PROFILE), 'w') as f:
+    with open(os.path.join(OUTPUT_PATH, DATA_PROFILE), 'w') as f:
         json.dump(prof, f, indent=4)
 
     return prof
@@ -218,7 +219,7 @@ def save_data_profile(df_train, prediction_type):
 def main():
     drop_cols = ['PassengerId', 'Name', 'Sex', 'Ticket', 'Cabin', 'Embarked', 'Salutation']
 
-    df_both, df_train, df_test = data_load()
+    df_both, df_modeling, df_submission = data_load()
 
     # 変数を作成する
     df_both = cabin(df_both)
@@ -227,27 +228,26 @@ def main():
     df_both = ticket(df_both)
     df_both = embarked(df_both)
 
-    df_train = df_both[df_both['PassengerId'].isin(df_train['PassengerId'])].copy()
-    df_test = df_both[df_both['PassengerId'].isin(df_test['PassengerId'])].copy()
+    df_modeling = df_both[df_both['PassengerId'].isin(df_modeling['PassengerId'])].copy()
+    df_submission = df_both[df_both['PassengerId'].isin(df_submission['PassengerId'])].copy()
 
-    df_test.drop(TARGET_COL, axis=1, inplace=True)
+    df_submission.drop(TARGET_COL, axis=1, inplace=True)
 
-    df_train = format_data(df_train)
-    df_test = format_data(df_test)
+    df_modeling = format_data(df_modeling)
+    df_submission = format_data(df_submission)
 
-    df_train = fill_missing_values(df_train, df_train, drop_cols)
-    df_test = fill_missing_values(df_test, df_train, drop_cols)
+    df_submission = fill_missing_values(df_submission, df_modeling, drop_cols)  # df_modelingの内容が変わる前に行う
+    df_modeling = fill_missing_values(df_modeling, df_modeling, drop_cols)
 
-    df_train.drop(drop_cols, axis=1, inplace=True)
-    df_test.drop(drop_cols, axis=1, inplace=True)
+    df_modeling.drop(drop_cols, axis=1, inplace=True)
+    df_submission.drop(drop_cols, axis=1, inplace=True)
 
-    os.makedirs(PROCESSED_DATA_PATH, exist_ok=True)
-    df_train.to_csv(os.path.join(PROCESSED_DATA_PATH, MODELING_DATA_FILE.format('csv')), encoding='utf8', index=False)
-    df_test.to_csv(os.path.join(PROCESSED_DATA_PATH, SUBMISSION_DATA_FILE.format('csv')), encoding='utf8', index=False)
-    df_train.to_pickle(os.path.join(PROCESSED_DATA_PATH, MODELING_DATA_FILE.format('pkl')))
-    df_test.to_pickle(os.path.join(PROCESSED_DATA_PATH, SUBMISSION_DATA_FILE.format('pkl')))
+    df_modeling.to_csv(os.path.join(OUTPUT_PATH, MODELING_DATA_FILE.format('csv')), encoding='utf8', index=False)
+    df_submission.to_csv(os.path.join(OUTPUT_PATH, SUBMISSION_DATA_FILE.format('csv')), encoding='utf8', index=False)
+    df_modeling.to_pickle(os.path.join(OUTPUT_PATH, MODELING_DATA_FILE.format('pkl')))
+    df_submission.to_pickle(os.path.join(OUTPUT_PATH, SUBMISSION_DATA_FILE.format('pkl')))
 
-    save_data_profile(df_train, 'classification')
+    save_data_profile(df_modeling, 'classification')
 
 
 def test():

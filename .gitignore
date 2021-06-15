@@ -134,17 +134,18 @@ dmypy.json
 # Mac
 .DS_Store
 
-# Preprocessed Data
+# Data
+Titanic/input/original/
 Titanic/input/preprocessed/
 
 # Lightning Files
 MNIST/lightning_files/
-Titanic/lightning_files/
+Titanic/modeling/lightning_files/
 
 # Training Log
 MNIST/lightning_logs/
-Titanic/lightning_logs/
+Titanic/modeling/lightning_logs/
 
 # Modeling Result
 MNIST/result/
-Titanic/result/
+Titanic/output/
