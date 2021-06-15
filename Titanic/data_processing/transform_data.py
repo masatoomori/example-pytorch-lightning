@@ -18,7 +18,7 @@ DATA_PROFILE = 'data_profile.json'
 TARGET_COL = 'Survived'
 
 
-def data_load():
+def load_data():
     df_modeling = pd.read_csv(os.path.join(INPUT_PATH, MODELING_DATA_FILE.format('csv')), encoding='utf8', dtype=object)
     df_submission = pd.read_csv(os.path.join(INPUT_PATH, SUBMISSION_DATA_FILE.format('csv')), encoding='utf8', dtype=object)
     for df in [df_modeling, df_submission]:
@@ -219,7 +219,7 @@ def save_data_profile(df_train, prediction_type):
 def main():
     drop_cols = ['PassengerId', 'Name', 'Sex', 'Ticket', 'Cabin', 'Embarked', 'Salutation']
 
-    df_both, df_modeling, df_submission = data_load()
+    df_both, df_modeling, df_submission = load_data()
 
     # 変数を作成する
     df_both = cabin(df_both)
