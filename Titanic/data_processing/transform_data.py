@@ -31,7 +31,9 @@ def load_data():
             if c in df.columns:
                 df[c] = pd.to_numeric(df[c])
 
-    return df_modeling.append(df_submission, sort=False), df_modeling, df_submission
+    df_both = pd.concat([df_modeling, df_submission], sort=False).reset_index(drop=True)
+
+    return df_both, df_modeling, df_submission
 
 
 def cabin(df):
