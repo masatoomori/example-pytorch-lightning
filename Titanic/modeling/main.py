@@ -8,23 +8,23 @@ import pandas as pd
 import torch
 from torch import nn
 import torch.nn.functional as F
+from torch.utils import data
 
 from torch.utils.data import DataLoader, TensorDataset, random_split
 import pytorch_lightning as pl
 from pytorch_lightning.callbacks import Callback
 
 from net_encoder_decoder_titanic import Encoder, Decoder
+from titanic_dataset import MyDataset
 
+# MyDatasetに必要な環境変数
 HOME_PATH = os.pardir
+INPUT_PATH = os.path.join(HOME_PATH, 'input', 'preprocessed')
 MODELING_DATA_FILE = 'modeling.pkl'
 SUBMISSION_DATA_FILE = 'submission.pkl'
-ORIG_DATA_PATH = os.path.join(HOME_PATH, 'input', 'preprocessed')
-
-# transform_data.pyで作成したファイル
-MODELING_ORIG_FILE = os.path.join(ORIG_DATA_PATH, MODELING_DATA_FILE)
-SUBMISSION_ORIG_FILE = os.path.join(ORIG_DATA_PATH, SUBMISSION_DATA_FILE)
-DATA_PROFILE_FILE = os.path.join(ORIG_DATA_PATH, 'data_profile.json')
-DATA_PROFILE = json.load(open(DATA_PROFILE_FILE))
+DATA_PROFILE_FILE = 'data_profile.json'
+TEST_RATIO = 0.2
+VALIDATION_RATIO = 0.2
 
 LIGHTNING_PATH = os.path.join(os.curdir, 'lightning_files')
 DATA_PATH_PREFIX = os.path.join('input', 'processed')
@@ -41,9 +41,7 @@ os.makedirs(DATA_RESULT_PATH, exist_ok=True)
 
 N_CPU = min(2, os.cpu_count())
 
-TEST_RATIO = 0.2
-VALIDATION_RATIO = 0.2
-MAX_EPOCH = 10
+MAX_EPOCH = 2
 LEARNING_RATE = 1e-3
 
 
@@ -57,14 +55,9 @@ class MyLitModule(pl.LightningModule):
         super().__init__()
         self.data_dir = data_dir
 
-        # Hardcode some dataset specific attributes
-        self.target = DATA_PROFILE['target']['name']
-        self.num_classes = DATA_PROFILE['target']['num_classes']
-        self.classes = set(DATA_PROFILE['target']['classes'])
-        self.dims = set(DATA_PROFILE['explanatory']['dims'])
-        self.x_cols = DATA_PROFILE['explanatory']['names']
-        self.label_dtype = torch.long if DATA_PROFILE['prediction_type'] == 'classification' else torch.float32
-
+        data_profile = json.load(open(os.path.join(INPUT_PATH, DATA_PROFILE_FILE)))
+        self.num_classes = data_profile['target']['num_classes']
+        self.dims = data_profile['explanatory']['dims']
         self.encoder = Encoder(self.dims, self.num_classes)
         self.decoder = Decoder(self.dims, self.num_classes)
 
@@ -108,36 +101,15 @@ class MyLitModule(pl.LightningModule):
         return optimizer
 
     def prepare_data(self):
-        # download
-        df_modeling = pd.read_pickle(MODELING_ORIG_FILE)
-        df_submission = pd.read_pickle(SUBMISSION_ORIG_FILE)
-
-        # 必要に応じて型の変換とかを書く。Transformというクラスを作った方がいいかもしれない
-        # 基本的にはdata_preprocessing.pyで前処理は済ませたい
-
-        data_path = os.path.join(self.data_dir, DATA_PATH_PREFIX)
-        os.makedirs(data_path, exist_ok=True)
-        df_modeling.to_pickle(os.path.join(data_path, MODELING_DATA_FILE))
-        df_submission.to_pickle(os.path.join(data_path, SUBMISSION_DATA_FILE))
+        pass
 
     def setup(self, stage=None):
-        # train, val, testデータ分割
-
-        data_path = os.path.join(self.data_dir, DATA_PATH_PREFIX)
-        df_full = pd.read_pickle(os.path.join(data_path, MODELING_DATA_FILE))
-
-        ts_full = torch.tensor(df_full.drop(self.target, axis=1).values, dtype=torch.float32)
-        ts_label = torch.tensor(df_full[self.target].values, dtype=self.label_dtype)
-        ds_full = TensorDataset(ts_full, ts_label)
-
-        n_full = len(df_full)
-        n_test = int(n_full * TEST_RATIO)
-        n_modeling = n_full - n_test
-        ds_modeling, self.ds_test = torch.utils.data.random_split(ds_full, [n_modeling, n_test])
-
-        n_val = int(n_modeling * VALIDATION_RATIO)
-        n_train = n_modeling - n_val
-        self.ds_train, self.ds_val = torch.utils.data.random_split(ds_modeling, [n_train, n_val])
+        dataset = MyDataset()
+        self.ds_train = dataset.ds_train
+        self.ds_val = dataset.ds_val
+        self.ds_test = dataset.ds_test
+        self.x_cols = dataset.x_cols
+        self.target = dataset.target
 
     def train_dataloader(self):
         # get some random training data
