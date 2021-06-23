@@ -43,7 +43,7 @@ N_CPU = min(2, os.cpu_count())
 
 TEST_RATIO = 0.2
 VALIDATION_RATIO = 0.2
-MAX_EPOCH = 100
+MAX_EPOCH = 10
 LEARNING_RATE = 1e-3
 
 
@@ -62,6 +62,7 @@ class MyLitModule(pl.LightningModule):
         self.num_classes = DATA_PROFILE['target']['num_classes']
         self.classes = set(DATA_PROFILE['target']['classes'])
         self.dims = set(DATA_PROFILE['explanatory']['dims'])
+        self.x_cols = DATA_PROFILE['explanatory']['names']
         self.label_dtype = torch.long if DATA_PROFILE['prediction_type'] == 'classification' else torch.float32
 
         self.encoder = Encoder(self.dims, self.num_classes)
@@ -150,6 +151,21 @@ class MyLitModule(pl.LightningModule):
         return DataLoader(self.ds_test, shuffle=False, batch_size=32, num_workers=N_CPU)
 
 
+def get_result_from_model(ds, model):
+    data = DataLoader(ds, batch_size=len(ds), shuffle=False, sampler=None, batch_sampler=None, num_workers=0,
+                      collate_fn=None, pin_memory=False, drop_last=False, timeout=0, worker_init_fn=None)
+
+    dataiter = iter(data)
+    explanatory_values, labels = dataiter.next()
+    df = pd.DataFrame(explanatory_values.numpy(), columns=model.x_cols)
+    df[model.target] = labels.numpy()
+
+    y_hat = model.encoder(explanatory_values).squeeze().detach().numpy()
+    df[model.target + '_pred'] = np.where(y_hat > 0.1, 1, 0)
+
+    return df
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--train', '-t', action='store_true')
@@ -194,13 +210,16 @@ def main():
             print('evaluate loaded model')
 
         # load data
-        df_full = pd.read_pickle(os.path.join(LIGHTNING_PATH, DATA_PATH_PREFIX, MODELING_DATA_FILE))
-        X = torch.tensor(df_full.drop(DATA_PROFILE['target']['name'], axis=1).values, dtype=torch.float32)
-        y = df_full[DATA_PROFILE['target']['name']].values
-        y_hat = model.encoder(X).squeeze().detach().numpy()
+        df_train = get_result_from_model(model.ds_train, model)
+        df_val = get_result_from_model(model.ds_val, model)
+        df_test = get_result_from_model(model.ds_test, model)
 
-        y_pred = np.where(y_hat > 0.1, 1, 0)
-        print('accuracy: ', sum(y == y_pred) / y.size)
+        df_train['data_usage'] = 'train'
+        df_val['data_usage'] = 'val'
+        df_test['data_usage'] = 'test'
+
+        df_full = pd.concat([df_train, df_val, df_test], sort=False)
+        df_full.to_csv(FULL_RESULT_FILE, index=False)
 
     if args.predict:
         # load model
