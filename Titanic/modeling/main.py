@@ -172,6 +172,8 @@ def main():
         print("'$ tensorboard --logdir ./lightning_logs' to check result")
 
     if args.evaluate:
+        # https://qiita.com/MuAuan/items/a062d0c245c8f4836399
+        # https://cpp-learning.com/pytorch-lightning/
         # load model
         if args.train:
             print('evaluate trained model')
