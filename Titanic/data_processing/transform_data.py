@@ -244,6 +244,10 @@ def main():
     df_modeling.drop(drop_cols, axis=1, inplace=True)
     df_submission.drop(drop_cols, axis=1, inplace=True)
 
+    # modeling側で元データと突合できるよう、インデックスを整えておく
+    df_modeling.reset_index(drop=True, inplace=True)
+    df_submission.reset_index(drop=True, inplace=True)
+
     df_modeling.to_csv(os.path.join(OUTPUT_PATH, MODELING_DATA_FILE.format('csv')), encoding='utf8', index=False)
     df_submission.to_csv(os.path.join(OUTPUT_PATH, SUBMISSION_DATA_FILE.format('csv')), encoding='utf8', index=False)
     df_modeling.to_pickle(os.path.join(OUTPUT_PATH, MODELING_DATA_FILE.format('pkl')))

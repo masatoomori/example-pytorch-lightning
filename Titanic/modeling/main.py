@@ -13,7 +13,6 @@ from torch.utils.data import DataLoader
 import pytorch_lightning as pl
 from pytorch_lightning.callbacks import Callback
 
-import titanic_dataset as ds
 from titanic_dataset import MyDataset
 from net_encoder_decoder_titanic import Encoder, Decoder
 
@@ -22,13 +21,14 @@ HOME_PATH = os.pardir
 # MyDatasetに必要な環境変数
 INPUT_PATH = os.path.join(HOME_PATH, 'input', 'preprocessed')
 MODELING_DATA_FILE = 'modeling.pkl'
-TEST_DATA_FILE = 'submission.pkl'
 DATA_PROFILE_FILE = 'data_profile.json'
 TEST_RATIO = 0.2
 VALIDATION_RATIO = 0.2
 
 LIGHTNING_PATH = os.path.join(os.curdir, 'lightning_files')
 DATA_PATH_PREFIX = os.path.join('input', 'processed')
+
+TEST_DATA_FILE = 'submission.pkl'
 
 RESULT_PATH = os.path.join(HOME_PATH, 'output')
 MODEL_RESULT_PATH = os.path.join(RESULT_PATH, 'model')
@@ -113,19 +113,19 @@ class MyLitModule(pl.LightningModule):
         self.x_cols = self.dataset.x_cols
         self.target = self.dataset.target
 
-    def train_dataloader(self):
+    def train_dataloader(self, shuffle=True, batch_size=BATCH_SIZE):
         # get some random training data
-        self.trainloader = DataLoader(self.ds_train, shuffle=True, drop_last=True, batch_size=BATCH_SIZE, num_workers=N_CPU)
+        self.trainloader = DataLoader(self.ds_train, shuffle=shuffle, drop_last=True, batch_size=batch_size, num_workers=N_CPU)
         return self.trainloader
 
-    def val_dataloader(self):
-        return DataLoader(self.ds_val, shuffle=False, batch_size=BATCH_SIZE, num_workers=N_CPU)
+    def val_dataloader(self, batch_size=BATCH_SIZE):
+        return DataLoader(self.ds_val, shuffle=False, batch_size=batch_size, num_workers=N_CPU)
 
     def test_dataloader(self):
         return DataLoader(self.ds_test, shuffle=False, batch_size=len(self.ds_test), num_workers=N_CPU)
 
 
-def get_result_from_model(ds, model):
+def get_result_from_model(model):
     data = DataLoader(ds, batch_size=len(ds), shuffle=False, sampler=None, batch_sampler=None, num_workers=0,
                       collate_fn=None, pin_memory=False, drop_last=False, timeout=0, worker_init_fn=None)
 
@@ -191,6 +191,11 @@ def main():
 
         model.eval()
         model.freeze()
+
+        # train data
+        print()
+
+
 
         # load data
         df_train = get_result_from_model(model.ds_train, model)

@@ -46,8 +46,9 @@ class MyDataset(Dataset):
 		self.is_classification = True if self.data_profile['prediction_type'] == 'classification' else False  # False means regression
 		self.label_dtype = torch.long if self.is_classification else torch.float32
 
+
 		df_full = pd.read_pickle(os.path.join(data_path, modeling_data_file))
-		ds_full = TensorDataset(
+		self.ds_full = TensorDataset(
 			torch.tensor(df_full.drop(self.target, axis=1).values, dtype=torch.float32),
 			torch.tensor(df_full[self.target].values, dtype=self.label_dtype)
 			)
@@ -55,7 +56,7 @@ class MyDataset(Dataset):
 
 		n_test = int(n_full * test_ratio)
 		n_modeling = n_full - n_test
-		ds_modeling, self.ds_test = torch.utils.data.random_split(ds_full, [n_modeling, n_test])
+		ds_modeling, self.ds_test = torch.utils.data.random_split(self.ds_full, [n_modeling, n_test])
 
 		n_val = int(n_modeling * validation_ratio)
 		n_train = n_modeling - n_val
