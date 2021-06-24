@@ -8,20 +8,21 @@ import pandas as pd
 import torch
 from torch import nn
 import torch.nn.functional as F
-from torch.utils import data
 
-from torch.utils.data import DataLoader, TensorDataset, random_split
+from torch.utils.data import DataLoader
 import pytorch_lightning as pl
 from pytorch_lightning.callbacks import Callback
 
-from net_encoder_decoder_titanic import Encoder, Decoder
+import titanic_dataset as ds
 from titanic_dataset import MyDataset
+from net_encoder_decoder_titanic import Encoder, Decoder
+
+HOME_PATH = os.pardir
 
 # MyDatasetに必要な環境変数
-HOME_PATH = os.pardir
 INPUT_PATH = os.path.join(HOME_PATH, 'input', 'preprocessed')
 MODELING_DATA_FILE = 'modeling.pkl'
-SUBMISSION_DATA_FILE = 'submission.pkl'
+TEST_DATA_FILE = 'submission.pkl'
 DATA_PROFILE_FILE = 'data_profile.json'
 TEST_RATIO = 0.2
 VALIDATION_RATIO = 0.2
@@ -43,6 +44,7 @@ N_CPU = min(2, os.cpu_count())
 
 MAX_EPOCH = 2
 LEARNING_RATE = 1e-3
+BATCH_SIZE = 32
 
 
 class MyPrintingCallback(Callback):
@@ -51,13 +53,14 @@ class MyPrintingCallback(Callback):
 
 
 class MyLitModule(pl.LightningModule):
-    def __init__(self, data_dir=LIGHTNING_PATH):
+    def __init__(self, data_dir=LIGHTNING_PATH, dataset=None):
         super().__init__()
         self.data_dir = data_dir
+        self.dataset = dataset
 
-        data_profile = json.load(open(os.path.join(INPUT_PATH, DATA_PROFILE_FILE)))
-        self.num_classes = data_profile['target']['num_classes']
-        self.dims = data_profile['explanatory']['dims']
+        self.data_profile = dataset.data_profile
+        self.num_classes = dataset.data_profile['target']['num_classes']
+        self.dims = dataset.data_profile['explanatory']['dims']
         self.encoder = Encoder(self.dims, self.num_classes)
         self.decoder = Decoder(self.dims, self.num_classes)
 
@@ -104,23 +107,22 @@ class MyLitModule(pl.LightningModule):
         pass
 
     def setup(self, stage=None):
-        dataset = MyDataset()
-        self.ds_train = dataset.ds_train
-        self.ds_val = dataset.ds_val
-        self.ds_test = dataset.ds_test
-        self.x_cols = dataset.x_cols
-        self.target = dataset.target
+        self.ds_train = self.dataset.ds_train
+        self.ds_val = self.dataset.ds_val
+        self.ds_test = self.dataset.ds_test
+        self.x_cols = self.dataset.x_cols
+        self.target = self.dataset.target
 
     def train_dataloader(self):
         # get some random training data
-        self.trainloader = DataLoader(self.ds_train, shuffle=True, drop_last=True, batch_size=32, num_workers=N_CPU)
+        self.trainloader = DataLoader(self.ds_train, shuffle=True, drop_last=True, batch_size=BATCH_SIZE, num_workers=N_CPU)
         return self.trainloader
 
     def val_dataloader(self):
-        return DataLoader(self.ds_val, shuffle=False, batch_size=32, num_workers=N_CPU)
+        return DataLoader(self.ds_val, shuffle=False, batch_size=BATCH_SIZE, num_workers=N_CPU)
 
     def test_dataloader(self):
-        return DataLoader(self.ds_test, shuffle=False, batch_size=32, num_workers=N_CPU)
+        return DataLoader(self.ds_test, shuffle=False, batch_size=len(self.ds_test), num_workers=N_CPU)
 
 
 def get_result_from_model(ds, model):
@@ -141,7 +143,7 @@ def get_result_from_model(ds, model):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--train', '-t', action='store_true')
-    parser.add_argument('--discard', '-d', action='store_true')
+    parser.add_argument('--discard_model', '-d', action='store_true')
     parser.add_argument('--evaluate', '-e', action='store_true')
     parser.add_argument('--predict', '-p', action='store_true')
     args = parser.parse_args()
@@ -149,11 +151,17 @@ def main():
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
     n_gpu = 0 if device == torch.device('cpu') else 1
 
-    model = MyLitModule()
-    trainer = pl.Trainer(max_epochs=MAX_EPOCH, gpus=n_gpu, callbacks=[MyPrintingCallback()])
+    dataset = MyDataset(
+        data_path=INPUT_PATH,
+        data_profile_file=DATA_PROFILE_FILE,
+        modeling_data_file=MODELING_DATA_FILE,
+        test_ratio=TEST_RATIO,
+        validation_ratio=VALIDATION_RATIO
+    )
+    model = MyLitModule(dataset=dataset)
 
     if args.train:
-        # trainer = pl.Trainer()
+        trainer = pl.Trainer(max_epochs=MAX_EPOCH, gpus=n_gpu, callbacks=[MyPrintingCallback()])
         trainer.fit(model)  # , DataLoader(train), DataLoader(val))
         print('training_finished')
 
@@ -164,7 +172,7 @@ def main():
         print(labels[:5])
         print(results)
 
-        if args.discard:
+        if args.discard_model:
             print('trained model discarded')
         else:
             torch.save(model.state_dict(), MODEL_FILE)
@@ -172,16 +180,17 @@ def main():
         print("'$ tensorboard --logdir ./lightning_logs' to check result")
 
     if args.evaluate:
-        # https://qiita.com/MuAuan/items/a062d0c245c8f4836399
-        # https://cpp-learning.com/pytorch-lightning/
         # load model
         if args.train:
             print('evaluate trained model')
         else:
-            model = MyLitModule()
+            model = MyLitModule(dataset=dataset)
             model.setup()
             model.load_state_dict(torch.load(MODEL_FILE))
             print('evaluate loaded model')
+
+        model.eval()
+        model.freeze()
 
         # load data
         df_train = get_result_from_model(model.ds_train, model)

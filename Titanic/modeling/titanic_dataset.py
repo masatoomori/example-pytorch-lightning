@@ -4,13 +4,11 @@ import json
 import numpy as np
 import pandas as pd
 import torch
-from torch.utils import data
 from torch.utils.data import Dataset, TensorDataset
 
 HOME_PATH = os.path.join(os.pardir)
 INPUT_PATH = os.path.join(HOME_PATH, 'input', 'preprocessed')
 MODELING_DATA_FILE = 'modeling.pkl'
-TEST_DATA_FILE = 'submission.pkl'
 DATA_PROFILE_FILE = 'data_profile.json'
 
 TEST_RATIO = 0.2
@@ -36,7 +34,6 @@ class MyDataset(Dataset):
 				 data_path=INPUT_PATH,
 				 data_profile_file=DATA_PROFILE_FILE,
 				 modeling_data_file=MODELING_DATA_FILE,
-				 test_data_file=TEST_DATA_FILE,
 				 test_ratio=TEST_RATIO,
 				 validation_ratio=VALIDATION_RATIO,
 				 transform=None):
@@ -49,41 +46,22 @@ class MyDataset(Dataset):
 		self.is_classification = True if self.data_profile['prediction_type'] == 'classification' else False  # False means regression
 		self.label_dtype = torch.long if self.is_classification else torch.float32
 
-		if test_data_file is None:
-			# テストデータが指定されていない場合、学習データから切り分ける
-			df_full = pd.read_pickle(os.path.join(data_path, modeling_data_file))
-			ds_full = TensorDataset(
-				torch.tensor(df_full.drop(self.target, axis=1).values, dtype=torch.float32),
-				torch.tensor(df_full[self.target].values, dtype=self.label_dtype)
-				)
-			n_full = len(df_full)
+		df_full = pd.read_pickle(os.path.join(data_path, modeling_data_file))
+		ds_full = TensorDataset(
+			torch.tensor(df_full.drop(self.target, axis=1).values, dtype=torch.float32),
+			torch.tensor(df_full[self.target].values, dtype=self.label_dtype)
+			)
+		n_full = len(df_full)
 
-			n_test = int(n_full * test_ratio)
-			n_modeling = n_full - n_test
-			ds_modeling, self.ds_test = torch.utils.data.random_split(ds_full, [n_modeling, n_test])
-
-		else:
-			df_modeling = pd.read_pickle(os.path.join(data_path, modeling_data_file))
-			ds_modeling = TensorDataset(
-				torch.tensor(df_modeling.drop(self.target, axis=1).values, dtype=torch.float32),
-				torch.tensor(df_modeling[self.target].values, dtype=self.label_dtype)
-				)
-			n_modeling = len(df_modeling)
-
-			df_test = pd.read_pickle(os.path.join(data_path, test_data_file))
-			if self.target not in df_test:
-				df_test[self.target] = np.nan
-			self.ds_test = TensorDataset(
-				torch.tensor(df_test.drop(self.target, axis=1).values, dtype=torch.float32),
-				torch.tensor(df_test[self.target].values, dtype=self.label_dtype)
-				)
+		n_test = int(n_full * test_ratio)
+		n_modeling = n_full - n_test
+		ds_modeling, self.ds_test = torch.utils.data.random_split(ds_full, [n_modeling, n_test])
 
 		n_val = int(n_modeling * validation_ratio)
 		n_train = n_modeling - n_val
 		self.ds_train, self.ds_val = torch.utils.data.random_split(ds_modeling, [n_train, n_val])
 
 		self.transform = transform
-
 
 
 def main():
