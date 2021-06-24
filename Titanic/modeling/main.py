@@ -42,7 +42,7 @@ os.makedirs(DATA_RESULT_PATH, exist_ok=True)
 
 N_CPU = min(2, os.cpu_count())
 
-MAX_EPOCH = 2
+MAX_EPOCH = 100
 LEARNING_RATE = 1e-3
 BATCH_SIZE = 32
 
@@ -125,17 +125,29 @@ class MyLitModule(pl.LightningModule):
         return DataLoader(self.ds_test, shuffle=False, batch_size=len(self.ds_test), num_workers=N_CPU)
 
 
-def get_result_from_model(model):
-    data = DataLoader(ds, batch_size=len(ds), shuffle=False, sampler=None, batch_sampler=None, num_workers=0,
-                      collate_fn=None, pin_memory=False, drop_last=False, timeout=0, worker_init_fn=None)
+def get_result_from_model(model, data_usage):
+    if data_usage == 'train':
+        dataiter = iter(model.train_dataloader(shuffle=False, batch_size=len(model.ds_train)))
+        data_index = model.dataset.train_index
+    elif data_usage == 'val':
+        dataiter = iter(model.val_dataloader(batch_size=len(model.ds_val)))
+        data_index = model.dataset.val_index
+    elif data_usage == 'test':
+        dataiter = iter(model.test_dataloader())
+        data_index = model.dataset.test_index
+    else:
+        print('data_usage param mush be either of train, val or test')
+        return pd.DataFrame()
 
-    dataiter = iter(data)
     explanatory_values, labels = dataiter.next()
-    df = pd.DataFrame(explanatory_values.numpy(), columns=model.x_cols)
+    df = pd.DataFrame(explanatory_values.numpy(), columns=model.x_cols, index=data_index)
+
     df[model.target] = labels.numpy()
 
     y_hat = model.encoder(explanatory_values).squeeze().detach().numpy()
     df[model.target + '_pred'] = np.where(y_hat > 0.1, 1, 0)
+
+    df['data_usage'] = data_usage
 
     return df
 
@@ -192,21 +204,12 @@ def main():
         model.eval()
         model.freeze()
 
-        # train data
-        print()
-
-
-
-        # load data
-        df_train = get_result_from_model(model.ds_train, model)
-        df_val = get_result_from_model(model.ds_val, model)
-        df_test = get_result_from_model(model.ds_test, model)
-
-        df_train['data_usage'] = 'train'
-        df_val['data_usage'] = 'val'
-        df_test['data_usage'] = 'test'
+        df_train = get_result_from_model(model, data_usage='train')
+        df_val = get_result_from_model(model, data_usage='val')
+        df_test = get_result_from_model(model, data_usage='test')
 
         df_full = pd.concat([df_train, df_val, df_test], sort=False)
+        df_full.sort_index(inplace=True)
         df_full.to_csv(FULL_RESULT_FILE, index=False)
 
     if args.predict:
