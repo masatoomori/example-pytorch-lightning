@@ -14,6 +14,8 @@ DATA_PROFILE_FILE = 'data_profile.json'
 TEST_RATIO = 0.2
 VALIDATION_RATIO = 0.2
 
+RANDOM_SEED = 15
+
 
 class MyTransform():
 	def __init__(self) -> None:
@@ -48,19 +50,35 @@ class MyDataset(Dataset):
 
 
 		df_full = pd.read_pickle(os.path.join(data_path, modeling_data_file))
-		self.ds_full = TensorDataset(
-			torch.tensor(df_full.drop(self.target, axis=1).values, dtype=torch.float32),
-			torch.tensor(df_full[self.target].values, dtype=self.label_dtype)
-			)
-		n_full = len(df_full)
 
+		# 検証データと元データが突合できるよう、train, val, testのデータセットでそれぞれ元データのどこを参照したのかインデックスを保持する
+		n_full = len(df_full)
 		n_test = int(n_full * test_ratio)
 		n_modeling = n_full - n_test
-		ds_modeling, self.ds_test = torch.utils.data.random_split(self.ds_full, [n_modeling, n_test])
-
 		n_val = int(n_modeling * validation_ratio)
 		n_train = n_modeling - n_val
-		self.ds_train, self.ds_val = torch.utils.data.random_split(ds_modeling, [n_train, n_val])
+
+		df_full = df_full.sample(frac=1, random_state=RANDOM_SEED)
+		self.train_index = df_full.index[:n_train]
+		self.val_index = df_full.index[n_train:-n_test]
+		self.test_index = df_full.index[-n_test:]
+
+		df_train = df_full.filter(items=self.train_index, axis=0)
+		df_val = df_full.filter(items=self.val_index, axis=0)
+		df_test = df_full.filter(items=self.test_index, axis=0)
+
+		self.ds_train = TensorDataset(
+			torch.tensor(df_train.drop(self.target, axis=1).values, dtype=torch.float32),
+			torch.tensor(df_train[self.target].values, dtype=self.label_dtype)
+			)
+		self.ds_val = TensorDataset(
+			torch.tensor(df_val.drop(self.target, axis=1).values, dtype=torch.float32),
+			torch.tensor(df_val[self.target].values, dtype=self.label_dtype)
+			)
+		self.ds_test = TensorDataset(
+			torch.tensor(df_test.drop(self.target, axis=1).values, dtype=torch.float32),
+			torch.tensor(df_test[self.target].values, dtype=self.label_dtype)
+			)
 
 		self.transform = transform
 
