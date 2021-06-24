@@ -28,13 +28,14 @@ VALIDATION_RATIO = 0.2
 LIGHTNING_PATH = os.path.join(os.curdir, 'lightning_files')
 DATA_PATH_PREFIX = os.path.join('input', 'processed')
 
-TEST_DATA_FILE = 'submission.pkl'
-
 RESULT_PATH = os.path.join(HOME_PATH, 'output')
 MODEL_RESULT_PATH = os.path.join(RESULT_PATH, 'model')
 DATA_RESULT_PATH = os.path.join(RESULT_PATH, 'data')
 MODEL_FILE = os.path.join(MODEL_RESULT_PATH, 'model.pth')
 FULL_RESULT_FILE = os.path.join(DATA_RESULT_PATH, 'full_result.csv')
+
+# 推論に必要な環境変数
+SUBMISSION_DATA_FILE = 'submission.pkl'
 PREDICTION_RESULT_FILE = os.path.join(DATA_RESULT_PATH, 'prediction_result.csv')
 
 os.makedirs(MODEL_RESULT_PATH, exist_ok=True)
@@ -145,7 +146,7 @@ def get_result_from_model(model, data_usage):
     df[model.target] = labels.numpy()
 
     y_hat = model.encoder(explanatory_values).squeeze().detach().numpy()
-    df[model.target + '_pred'] = np.where(y_hat > 0.1, 1, 0)
+    df[model.target + '_pred'] = np.where(y_hat > 0.5, 1, 0)
 
     df['data_usage'] = data_usage
 
@@ -217,17 +218,22 @@ def main():
         if args.train:
             print('evaluate trained model')
         else:
-            model = MyLitModule()
+            model = MyLitModule(dataset=dataset)
             model.setup()
             model.load_state_dict(torch.load(MODEL_FILE))
             print('evaluate loaded model')
 
+        model.eval()
+        model.freeze()
+
         # load data
-        df_submission = pd.read_pickle(os.path.join(LIGHTNING_PATH, DATA_PATH_PREFIX, SUBMISSION_DATA_FILE))
-        df_submission[DATA_PROFILE['target']['name']] = None        # 形を整える為にカラムを追加する
-        X = torch.tensor(df_submission.drop(DATA_PROFILE['target']['name'], axis=1).values, dtype=torch.float32)
+        df_submission = pd.read_pickle(os.path.join(INPUT_PATH, SUBMISSION_DATA_FILE))
+        X = torch.tensor(df_submission.values, dtype=torch.float32)
+        df_submission[model.target] = None
         y_hat = model.encoder(X).squeeze().detach().numpy()
-        df_submission[DATA_PROFILE['target']['name']] = y_hat
+        df_submission[model.target] = y_hat
+        df_submission[model.target + '_pred'] = np.where(y_hat > 0.5, 1, 0)
+        df_submission['data_usage'] = 'submission'
         df_submission.to_csv(PREDICTION_RESULT_FILE, index=False)
 
 
