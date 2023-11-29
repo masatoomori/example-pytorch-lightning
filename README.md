@@ -1,4 +1,4 @@
-# test-pytorch-lightning
+# example pytorch lightning
 
 ## 環境構築
 
